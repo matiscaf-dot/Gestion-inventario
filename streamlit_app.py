@@ -118,7 +118,7 @@ if st.session_state["pagina"] == "dashboard":
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Total de Productos", len(df))
-    col2.metric("Stock Total", int(df["Cantidad"].sum()))
+    col2.metric("Stock Total", int(df["cantidad"].sum()))
     col3.metric("Actualizado", datetime.now().strftime("%d-%m-%Y %H:%M"))
 
     st.dataframe(df, use_container_width=True)
