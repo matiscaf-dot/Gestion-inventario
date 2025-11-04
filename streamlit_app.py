@@ -14,14 +14,14 @@ DATA_FILE = "inventario.xlsx"
 # ==============================
 def cargar_datos():
     if os.path.exists(DATA_FILE):
-        return pd.read_csv(DATA_FILE)
+        return pd.read_xlsx(DATA_FILE)
     else:
-        df = pd.DataFrame(columns=["Código", "Nombre", "Categoría", "Cantidad", "Fecha_ingreso"])
-        df.to_csv(DATA_FILE, index=False)
+        df = pd.DataFrame(columns=["codigo", "nombre", "categoria", "cantidad", "fecha ingreso"])
+        df.to_xlsx(DATA_FILE, index=False)
         return df
 
 def guardar_datos(df):
-    df.to_csv(DATA_FILE, index=False)
+    df.to_xlsx(DATA_FILE, index=False)
 
 def registrar_movimiento(tipo, codigo, nombre, cantidad):
     df = cargar_datos()
@@ -208,8 +208,8 @@ if st.session_state["pagina"] == "configuracion":
     st.write("Desde aquí puedes descargar el inventario completo o reiniciar los datos (opcional).")
 
     df = cargar_datos()
-    csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button("📥 Descargar Inventario (CSV)", csv, "inventario_fulltime.csv", "text/csv")
+    xlsx = df.to_xlsx(index=False).encode('utf-8')
+    st.download_button("📥 Descargar Inventario (xlsx)", xlsx, "inventario.xlsx", "text/xlsx")
 
     if st.button("⬅️ Volver al menú principal"):
         st.session_state["pagina"] = "menu"
