@@ -224,18 +224,47 @@ if st.session_state["pagina"] == "entradas":
 # SALIDAS
 # ==============================
 if st.session_state["pagina"] == "salidas":
-    st.title("➖ Registrar Salida")
-    codigo = st.text_input("Código del producto a retirar")
-    cantidad = st.number_input("Cantidad a retirar", min_value=1, step=1)
+    st.title("📤 Registrar Salida de Inventario")
 
+    # --- Sección: Subir boleta ---
+    st.subheader("📄 Subir boleta (PDF o imagen)")
+    boleta_file = st.file_uploader("Selecciona la boleta asociada", type=["pdf", "png", "jpg", "jpeg"])
+
+    boleta_path = None
+    if boleta_file:
+        import os
+        BOLETA_DIR = "boletas"
+        os.makedirs(BOLETA_DIR, exist_ok=True)
+
+        boleta_path = os.path.join(BOLETA_DIR, boleta_file.name)
+        with open(boleta_path, "wb") as f:
+            f.write(boleta_file.getbuffer())
+
+        st.success(f"Boleta guardada correctamente: {boleta_file.name}")
+        st.info("Procesamiento automático de boleta aún no implementado.")
+
+    st.markdown("---")
+
+    # --- Sección: Datos del producto ---
+    codigo = st.text_input("Código del producto")
+    cantidad = st.number_input("Cantidad a descontar", min_value=1, step=1)
+
+    # --- Botón de registro ---
     if st.button("✅ Registrar salida"):
-        registrar_movimiento("salida", codigo, "", cantidad)
-        st.success("Salida registrada correctamente.")
+        registrar_movimiento("salida", codigo, "", -cantidad)
+
+        # Guardar referencia de la boleta si se subió una
+        if boleta_path:
+            st.session_state["boleta_subida"] = boleta_path
+
+        st.success(f"Salida registrada correctamente. Producto: {codigo} (-{cantidad})")
         st.rerun()
 
+    # --- Botón volver ---
     if st.button("⬅️ Volver al menú principal"):
         st.session_state["pagina"] = "menu"
         st.rerun()
+
 
 # ==============================
 # CONFIGURACIÓN
