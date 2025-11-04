@@ -12,7 +12,7 @@ DATA_FILE = "inventario.xlsx"
 # ==============================
 # FUNCIONES AUXILIARES
 # ==============================
-def cargar_datos():
+def cargar_datos(DATA_FILE):
     if os.path.exists(DATA_FILE):
         return pd.read_xlsx(DATA_FILE)
     else:
@@ -114,7 +114,7 @@ if st.session_state["pagina"] == "menu":
 # ==============================
 if st.session_state["pagina"] == "dashboard":
     st.title("📊 Panel de Control")
-    df = cargar_datos()
+    df = cargar_datos(DATA_FILE)
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Total de Productos", len(df))
