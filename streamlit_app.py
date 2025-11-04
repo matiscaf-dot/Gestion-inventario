@@ -39,8 +39,8 @@ def registrar_movimiento(tipo, codigo, nombre, cantidad):
             df = pd.concat([df, nueva_fila], ignore_index=True)
     elif tipo == "salida":
         if codigo in df["Código"].values:
-            df.loc[df["Código"] == codigo, "Cantidad"] -= cantidad
-            if df.loc[df["Código"] == codigo, "Cantidad"].iloc[0] <= 0:
+            df.loc[df["Código"] == codigo, "cantidad"] -= cantidad
+            if df.loc[df["Código"] == codigo, "cantidad"].iloc[0] <= 0:
                 df = df[df["Código"] != codigo]
         else:
             st.error("❌ El producto no existe en inventario.")
