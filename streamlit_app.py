@@ -26,14 +26,14 @@ def guardar_datos(df):
 def registrar_movimiento(tipo, codigo, nombre, cantidad):
     df = cargar_datos()
     if tipo == "entrada":
-        if codigo in df["Código"].values:
-            df.loc[df["Código"] == codigo, "Cantidad"] += cantidad
+        if codigo in df["codigo"].values:
+            df.loc[df["codigo"] == codigo, "cantidad"] += cantidad
         else:
             nueva_fila = pd.DataFrame({
-                "Código": [codigo],
-                "Nombre": [nombre],
+                "codigo": [codigo],
+                "nombre": [nombre],
                 "Categoría": ["General"],
-                "Cantidad": [cantidad],
+                "cantidad": [cantidad],
                 "Fecha_ingreso": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
             })
             df = pd.concat([df, nueva_fila], ignore_index=True)
