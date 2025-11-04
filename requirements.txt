@@ -1,5 +1,6 @@
 streamlit
 pandas
-pyzbar
-opencv-python
 Pillow
+qrcode
+python-barcode
+XlsxWriter
