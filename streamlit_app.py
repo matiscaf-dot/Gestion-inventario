@@ -7,7 +7,7 @@ import os
 # CONFIGURACIÓN GENERAL
 # ==============================
 st.set_page_config(page_title="Inventario FullTime", layout="wide")
-DATA_FILE = "inventario_fulltime.csv"
+DATA_FILE = "inventario.xlsx"
 
 # ==============================
 # FUNCIONES AUXILIARES
