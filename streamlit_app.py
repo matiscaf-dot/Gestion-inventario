@@ -169,19 +169,56 @@ if st.session_state["pagina"] == "productos":
 # ENTRADAS
 # ==============================
 if st.session_state["pagina"] == "entradas":
-    st.title("➕ Registrar Entrada")
-    codigo = st.text_input("Código del producto (nuevo o existente)")
+    st.title("📦 Registrar Entrada de Inventario")
+
+    # --- Sección: Código de barras o manual ---
+    st.subheader("Código de producto")
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        if st.button("📷 Código de barra"):
+            st.info("Lectura de código de barras/QR pendiente de implementación.")
+    with col2:
+        codigo = st.text_input("O ingrese el código manualmente (nuevo o existente):")
+
+    # --- Sección: Subir factura ---
+    st.subheader("📄 Subir factura (PDF o imagen)")
+    factura_file = st.file_uploader("Selecciona la factura relacionada", type=["pdf", "png", "jpg", "jpeg"])
+
+    factura_path = None
+    if factura_file:
+        import os
+        FACTURA_DIR = "facturas"
+        os.makedirs(FACTURA_DIR, exist_ok=True)
+
+        factura_path = os.path.join(FACTURA_DIR, factura_file.name)
+        with open(factura_path, "wb") as f:
+            f.write(factura_file.getbuffer())
+
+        st.success(f"Factura guardada correctamente: {factura_file.name}")
+        st.info("Procesamiento automático de factura aún no implementado.")
+
+    st.markdown("---")
+
+    # --- Sección: Datos del producto ---
     nombre = st.text_input("Nombre del producto")
     cantidad = st.number_input("Cantidad a ingresar", min_value=1, step=1)
 
+    # --- Botón de registro ---
     if st.button("✅ Registrar entrada"):
         registrar_movimiento("entrada", codigo, nombre, cantidad)
-        st.success("Entrada registrada correctamente.")
+
+        # Guardar referencia a la factura si se subió una
+        if factura_path:
+            st.session_state["factura_subida"] = factura_path
+
+        st.success(f"Entrada registrada correctamente. Producto: {nombre} (+{cantidad})")
         st.rerun()
 
+    # --- Botón volver ---
     if st.button("⬅️ Volver al menú principal"):
         st.session_state["pagina"] = "menu"
         st.rerun()
+
 
 # ==============================
 # SALIDAS
