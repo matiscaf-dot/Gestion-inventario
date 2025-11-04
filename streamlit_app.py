@@ -185,16 +185,59 @@ USER = st.session_state.get("usuario", "admin")  # usuario conectado
 st.title("📦 Inventario Fulltime")
 st.sidebar.success(f"Conectado como: {USER}")
 
-menu = st.sidebar.selectbox("Menú", [
-    "Dashboard",
-    "Productos (CRUD)",
-    "Ingreso de inventario",
-    "Salida de inventario",
-    "Movimientos",
-    "Exportar / Descargar",
-    "Generar QR / Barcode",
-    "Ajustes"
-])
+# -----------------------
+# Menú visual en página principal
+# -----------------------
+
+if "page" not in st.session_state:
+    st.session_state.page = "Dashboard"
+
+st.sidebar.success(f"Conectado como: {USER}")
+if st.sidebar.button("Cerrar sesión"):
+    st.session_state.clear()
+    st.experimental_rerun()
+
+st.title("📦 Inventario Fulltime")
+st.caption("Sistema de gestión de inventario - FullTime")
+
+if st.session_state.page == "Dashboard":
+    st.subheader("Panel principal de gestión")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        if st.button("🧾 Productos"):
+            st.session_state.page = "Productos"
+            st.experimental_rerun()
+        if st.button("📥 Ingreso"):
+            st.session_state.page = "Ingreso"
+            st.experimental_rerun()
+        if st.button("📤 Salida"):
+            st.session_state.page = "Salida"
+            st.experimental_rerun()
+
+    with col2:
+        if st.button("📜 Movimientos"):
+            st.session_state.page = "Movimientos"
+            st.experimental_rerun()
+        if st.button("⬇️ Exportar / Descargar"):
+            st.session_state.page = "Exportar"
+            st.experimental_rerun()
+        if st.button("🔖 Generar QR / Barcode"):
+            st.session_state.page = "QR"
+            st.experimental_rerun()
+
+    with col3:
+        if st.button("⚙️ Ajustes"):
+            st.session_state.page = "Ajustes"
+            st.experimental_rerun()
+        if st.button("🏠 Volver al Dashboard"):
+            st.session_state.page = "Dashboard"
+            st.experimental_rerun()
+
+    st.markdown("---")
+    st.write("Selecciona una opción para comenzar a gestionar tu inventario.")
+
 
 # -----------------------
 # Dashboard
