@@ -46,15 +46,20 @@ def registrar_movimiento(codigo, nombre, cantidad, tipo):
 def leer_codigo_por_camara():
     st.info("Activa la cámara y apunta al código QR o de barras")
     img_file = st.camera_input("📸 Capturar código")
-    if img_file is not None:
-        img = Image.open(img_file)
-        result = decode(img)
-        if result:
-            return result[0].data.decode('utf-8')
-        else:
-            st.warning("No se detectó ningún código. Intenta nuevamente.")
-    return None
 
+    if img_file is not None:
+        # Convertir la imagen a formato OpenCV
+        img = Image.open(img_file)
+        img = np.array(img.convert("RGB"))
+        detector = cv2.QRCodeDetector()
+
+        data, vertices, _ = detector.detectAndDecode(img)
+        if data:
+            st.success(f"Código detectado: {data}")
+            return data
+        else:
+            st.warning("No se detectó ningún código QR. Intenta nuevamente.")
+    return None
 # --------------------------------------------------------
 # INTERFAZ PRINCIPAL
 # --------------------------------------------------------
