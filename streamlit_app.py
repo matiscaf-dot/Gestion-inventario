@@ -238,7 +238,6 @@ if st.session_state.page == "Dashboard":
     st.markdown("---")
     st.write("Selecciona una opción para comenzar a gestionar tu inventario.")
 
-
 # -----------------------
 # Dashboard
 # -----------------------
