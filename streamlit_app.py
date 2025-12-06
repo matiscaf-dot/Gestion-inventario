@@ -58,10 +58,28 @@ def registrar_movimiento(tipo, codigo, nombre, cantidad):
 # ==============================
 # LOGIN + ROLES
 # ==============================
+
 usuarios = {
-    "admin": {"clave": "1234", "rol": "admin"},
-    "hector": {"clave": "fulltime", "rol": "bodeguero"},
-    "vendedor1": {"clave": "1234", "rol": "vendedor"}
+    "admin": {              # Administrador general
+        "clave": "1234",
+        "rol": "admin"
+    },
+    "jefe": {               # Jefe del negocio → acceso total
+        "clave": "jefe123",
+        "rol": "admin"
+    },
+    "hector": {             # Bodeguero
+        "clave": "fulltime",
+        "rol": "bodeguero"
+    },
+    "vendedor1": {          # Primer vendedor
+        "clave": "1234",
+        "rol": "vendedor"
+    },
+    "vendedor2": {          # Segundo vendedor agregado (nuevo)
+        "clave": "abc123",
+        "rol": "vendedor"
+    }
 }
 
 if "logueado" not in st.session_state:
