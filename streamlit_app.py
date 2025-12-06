@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 import json
 from io import BytesIO
+from PIL import Image
 
 # ==============================
 # CONFIGURACIÓN GENERAL
@@ -130,6 +131,99 @@ def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None):
             return
 
 # ==============================
+# OCR: integración del código del modelo LightOnOCR con fallback a pytesseract
+# ==============================
+# Nota: el uso del modelo LightOnOCR requiere:
+#  - instalar transformers desde el fork/branch: pip install -U git+https://github.com/baptiste-aubertin/transformers.git@main
+#  - torch instalado y preferentemente GPU para modelos grandes.
+# Si no está disponible, el sistema intentará usar pytesseract si está instalado.
+def _load_lightonocr():
+    """
+    Intentar cargar el processor y el modelo LightOnOCR y guardarlos en session_state.
+    Devuelve True si se cargó correctamente.
+    """
+    if st.session_state.get("_lightonocr_loaded"):
+        return True
+    try:
+        import torch
+        from transformers import AutoProcessor, LightOnOCRForConditionalGeneration
+    except Exception as e:
+        # No se puede importar transformers / model class
+        st.session_state["_lightonocr_error"] = str(e)
+        return False
+
+    model_id = "lightonai/LightOnOCR-1B-1025"
+    device = "cuda" if (torch.cuda.is_available()) else "cpu"
+    try:
+        # dtype selection: use bfloat16 on supported devices (cuda) to reduce memory
+        dtype = getattr(torch, "bfloat16") if device == "cuda" else torch.float32
+        with st.spinner("Cargando modelo LightOnOCR (esto puede tardar)..."):
+            processor = AutoProcessor.from_pretrained(model_id)
+            model = LightOnOCRForConditionalGeneration.from_pretrained(
+                model_id,
+                dtype=dtype,
+                device_map=device,
+                attn_implementation="sdpa"
+            )
+            model.eval()
+        st.session_state["_lightonocr_processor"] = processor
+        st.session_state["_lightonocr_model"] = model
+        st.session_state["_lightonocr_loaded"] = True
+        return True
+    except Exception as e:
+        st.session_state["_lightonocr_error"] = str(e)
+        return False
+
+def run_lightonocr_on_image(pil_image):
+    """
+    Ejecuta inference con LightOnOCR usando los objetos cargados en session_state.
+    Devuelve texto extraído o None si falla.
+    """
+    try:
+        import torch
+        processor = st.session_state.get("_lightonocr_processor")
+        model = st.session_state.get("_lightonocr_model")
+        if processor is None or model is None:
+            return None
+
+        # Construir prompt (igual que en el ejemplo original)
+        messages = [{"role": "user", "content": [{"type": "image"}]}]
+        text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+
+        inputs = processor(text=[text], images=[pil_image], return_tensors="pt")
+        device = next(model.parameters()).device if hasattr(model, "parameters") else "cpu"
+        inputs = {k: v.to(device) if hasattr(v, "to") else v for k, v in inputs.items()}
+
+        # Convert pixel values dtype if needed
+        if "pixel_values" in inputs:
+            try:
+                # try convert to model dtype if possible
+                target_dtype = next(model.parameters()).dtype
+                inputs["pixel_values"] = inputs["pixel_values"].to(target_dtype)
+            except Exception:
+                pass
+
+        outputs = model.generate(**inputs, max_new_tokens=1024)
+        input_length = inputs['input_ids'].shape[1]
+        generated_text = processor.tokenizer.decode(outputs[0, input_length:], skip_special_tokens=True)
+        return generated_text
+    except Exception as e:
+        st.session_state["_lightonocr_error"] = str(e)
+        return None
+
+def run_pytesseract_on_image(pil_image):
+    """Fallback simple OCR usando pytesseract si está instalado."""
+    try:
+        import pytesseract
+    except Exception as e:
+        return None
+    try:
+        text = pytesseract.image_to_string(pil_image)
+        return text
+    except Exception:
+        return None
+
+# ==============================
 # INICIALIZACIÓN DE SESSION_STATE
 # ==============================
 if "logueado" not in st.session_state:
@@ -208,6 +302,7 @@ if st.session_state["pagina"] == "menu":
             st.session_state["pagina"] = "backup"
             st.experimental_rerun()
     with col5:
+        # Gestión y configuración solo admin
         if rol == "admin":
             if st.button("⚙️ Configuración", use_container_width=True):
                 st.session_state["pagina"] = "configuracion"
@@ -215,6 +310,12 @@ if st.session_state["pagina"] == "menu":
             if st.button("👤 Gestión de usuarios", use_container_width=True):
                 st.session_state["pagina"] = "usuarios"
                 st.experimental_rerun()
+
+    # Nuevo: acceso a OCR para todos los roles
+    st.markdown("---")
+    if st.button("🖼️ OCR (extraer texto de imagen)", use_container_width=True):
+        st.session_state["pagina"] = "ocr"
+        st.experimental_rerun()
 
     st.markdown("---")
     if st.button("🚪 Cerrar sesión", use_container_width=True):
@@ -305,6 +406,10 @@ if st.session_state["pagina"] == "entradas":
 
     st.title("📦 Registrar Entrada de Inventario")
 
+    # Si venimos desde OCR, precargar valores (si existen)
+    preload_codigo = st.session_state.get("ocr_codigo", "")
+    preload_nombre = st.session_state.get("ocr_nombre", "")
+
     # Código manual / futuro lector
     st.subheader("Código de producto")
     col1, col2 = st.columns([1, 2])
@@ -312,7 +417,7 @@ if st.session_state["pagina"] == "entradas":
         if st.button("📷 Código de barra (pendiente)"):
             st.info("Lectura de código de barras/QR pendiente de implementación.")
     with col2:
-        codigo = st.text_input("O ingrese el código manualmente (nuevo o existente):")
+        codigo = st.text_input("O ingrese el código manualmente (nuevo o existente):", value=preload_codigo)
 
     # Subir factura opcional
     st.subheader("📄 Subir factura (PDF o imagen) - opcional")
@@ -327,7 +432,7 @@ if st.session_state["pagina"] == "entradas":
         st.info("Procesamiento automático de factura aún no implementado.")
 
     st.markdown("---")
-    nombre = st.text_input("Nombre del producto")
+    nombre = st.text_input("Nombre del producto", value=preload_nombre)
     cantidad = st.number_input("Cantidad a ingresar", min_value=1, step=1)
 
     if st.button("✅ Registrar entrada"):
@@ -335,6 +440,9 @@ if st.session_state["pagina"] == "entradas":
         # Guardar referencia a la factura si se subió una
         if factura_path:
             st.session_state["factura_subida"] = factura_path
+        # limpiar valores de prefill OCR
+        st.session_state.pop("ocr_codigo", None)
+        st.session_state.pop("ocr_nombre", None)
         st.success(f"Entrada registrada correctamente. Producto: {nombre} (+{cantidad})")
         st.experimental_rerun()
 
@@ -383,6 +491,108 @@ if st.session_state["pagina"] == "salidas":
                     st.session_state["boleta_subida"] = boleta_path
                 st.success(f"Salida registrada correctamente. Producto: {codigo} (-{cantidad})")
                 st.experimental_rerun()
+
+    if st.button("⬅️ Volver al menú principal"):
+        st.session_state["pagina"] = "menu"
+        st.experimental_rerun()
+
+# ==============================
+# OCR PAGE
+# ==============================
+if st.session_state["pagina"] == "ocr":
+    st.title("🖼️ OCR - Extraer texto de una imagen")
+    st.write("Puedes usar el modelo LightOnOCR (si está instalado) o el fallback con pytesseract (si está instalado).")
+    st.markdown(
+        "### Notas:\n"
+        "- Para usar LightOnOCR necesitas instalar una versión específica de `transformers` y tener `torch`.\n"
+        "- Comando recomendado para transformers (ejemplo en Colab):\n"
+        "```\n"
+        "!pip install -q -U git+https://github.com/baptiste-aubertin/transformers.git@main\n"
+        "```\n"
+        "- Si no puedes usar LightOnOCR, instala `pytesseract` y el binario Tesseract en tu sistema para el fallback."
+    )
+
+    uploaded_image = st.file_uploader("Sube una imagen (jpg/png) para extraer texto", type=["png", "jpg", "jpeg"])
+    engine = st.selectbox("Motor OCR", ["Intentar LightOnOCR (recomendado si instalado)", "pytesseract (fallback)"])
+
+    if uploaded_image:
+        try:
+            pil_img = Image.open(uploaded_image).convert("RGB")
+            st.image(pil_img, caption="Imagen subida", use_column_width=True)
+        except Exception as e:
+            st.error(f"No se pudo abrir la imagen: {e}")
+            pil_img = None
+
+        if pil_img:
+            if engine.startswith("Intentar LightOnOCR"):
+                # Intentar cargar modelo
+                ok = _load_lightonocr()
+                if not ok:
+                    st.warning("No se pudo cargar LightOnOCR desde transformers aquí.")
+                    err = st.session_state.get("_lightonocr_error", "")
+                    if err:
+                        st.info("Error: " + str(err))
+                    st.info("Si quieres usar LightOnOCR, instala la versión requerida de transformers y torch. Alternativamente, selecciona pytesseract.")
+                else:
+                    with st.spinner("Ejecutando LightOnOCR sobre la imagen (puede tardar)..."):
+                        texto = run_lightonocr_on_image(pil_img)
+                    if texto:
+                        st.subheader("Texto extraído (LightOnOCR)")
+                        st.text_area("Resultado OCR", value=texto, height=300)
+                        st.download_button("📥 Descargar texto (txt)", texto.encode("utf-8"), file_name="ocr_result.txt", mime="text/plain")
+                        # Ofrecer precarga de campos en Entradas
+                        if st.button("➕ Usar resultado para pre-cargar Entradas"):
+                            # intenta extraer código y nombre simples desde el texto (heurística)
+                            lines = [l.strip() for l in texto.splitlines() if l.strip()]
+                            guessed_codigo = ""
+                            guessed_nombre = ""
+                            if len(lines) >= 1:
+                                guessed_nombre = lines[0][:100]
+                            # buscar texto que parezca código (número o alfanum corto)
+                            for ln in lines[:6]:
+                                token = ln.split()
+                                for t in token:
+                                    if any(c.isdigit() for c in t) and len(t) <= 12:
+                                        guessed_codigo = t
+                                        break
+                                if guessed_codigo:
+                                    break
+                            st.session_state["ocr_codigo"] = guessed_codigo
+                            st.session_state["ocr_nombre"] = guessed_nombre
+                            st.success("Datos precargados. Redirigiendo a Entradas...")
+                            st.session_state["pagina"] = "entradas"
+                            st.experimental_rerun()
+                    else:
+                        st.error("No se pudo extraer texto con LightOnOCR. Revisa los errores mostrados arriba.")
+            else:
+                # pytesseract fallback
+                texto = run_pytesseract_on_image(pil_img)
+                if texto is None:
+                    st.warning("pytesseract no está disponible o falló. Para usarlo instala pytesseract y el binario Tesseract en tu sistema.")
+                    st.info("En Linux/Colab: `!apt-get install -y tesseract-ocr && pip install pytesseract`")
+                else:
+                    st.subheader("Texto extraído (pytesseract)")
+                    st.text_area("Resultado OCR", value=texto, height=300)
+                    st.download_button("📥 Descargar texto (txt)", texto.encode("utf-8"), file_name="ocr_result.txt", mime="text/plain")
+                    if st.button("➕ Usar resultado para pre-cargar Entradas"):
+                        lines = [l.strip() for l in texto.splitlines() if l.strip()]
+                        guessed_codigo = ""
+                        guessed_nombre = ""
+                        if len(lines) >= 1:
+                            guessed_nombre = lines[0][:100]
+                        for ln in lines[:6]:
+                            token = ln.split()
+                            for t in token:
+                                if any(c.isdigit() for c in t) and len(t) <= 12:
+                                    guessed_codigo = t
+                                    break
+                            if guessed_codigo:
+                                break
+                        st.session_state["ocr_codigo"] = guessed_codigo
+                        st.session_state["ocr_nombre"] = guessed_nombre
+                        st.success("Datos precargados. Redirigiendo a Entradas...")
+                        st.session_state["pagina"] = "entradas"
+                        st.experimental_rerun()
 
     if st.button("⬅️ Volver al menú principal"):
         st.session_state["pagina"] = "menu"
