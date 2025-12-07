@@ -9,3 +9,4 @@ pyzbar
 pyzbar
 opencv-python
 PyGithub
+supabase
