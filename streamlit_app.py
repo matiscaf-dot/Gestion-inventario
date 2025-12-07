@@ -217,6 +217,13 @@ def run_pytesseract_on_image(pil_image):
         return None
 
 # ==============================
+# Helpers para navegación (evitan problemas de doble clic)
+# ==============================
+def go_to(page):
+    st.session_state["pagina"] = page
+    st.experimental_rerun()
+
+# ==============================
 # INICIALIZACIÓN DE SESSION_STATE (UNA SOLA VEZ)
 # ==============================
 if "logueado" not in st.session_state:
@@ -264,49 +271,28 @@ if st.session_state["pagina"] == "menu":
     # Opciones comunes / vendedor
     with col1:
         if rol in ["admin", "vendedor"]:
-            if st.button("📊 Dashboard", use_container_width=True):
-                st.session_state["pagina"] = "dashboard"
-                st.experimental_rerun()
-            if st.button("➖ Registrar Salida", use_container_width=True):
-                st.session_state["pagina"] = "salidas"
-                st.experimental_rerun()
+            st.button("📦 Tabla Inventario", use_container_width=True, on_click=go_to, args=("dashboard",))
+            st.button("➖ Registrar Salida", use_container_width=True, on_click=go_to, args=("salidas",))
 
     # Opciones bodeguero
     with col2:
         if rol in ["admin", "bodeguero"]:
-            if st.button("🗂️ Productos", use_container_width=True):
-                st.session_state["pagina"] = "productos"
-                st.experimental_rerun()
-            if st.button("➕ Registrar Entrada", use_container_width=True):
-                st.session_state["pagina"] = "entradas"
-                st.experimental_rerun()
+            st.button("🗂️ Productos", use_container_width=True, on_click=go_to, args=("productos",))
+            st.button("➕ Registrar Entrada", use_container_width=True, on_click=go_to, args=("entradas",))
 
-    # Botones adicionales para todos
+    # Botones adicionales para todos (ocultamos copia de seguridad del menú principal)
     st.markdown("---")
     col3, col4, col5 = st.columns(3)
     with col3:
-        if st.button("📝 Historial de movimientos", use_container_width=True):
-            st.session_state["pagina"] = "historial"
-            st.experimental_rerun()
+        st.button("📝 Historial de movimientos", use_container_width=True, on_click=go_to, args=("historial",))
     with col4:
-        if st.button("📦 Copia de seguridad (Descargar inventario)", use_container_width=True):
-            st.session_state["pagina"] = "backup"
-            st.experimental_rerun()
+        # espacio reservado (botón oculto intencionalmente)
+        st.write("") 
     with col5:
         # Gestión y configuración solo admin
         if rol == "admin":
-            if st.button("⚙️ Configuración", use_container_width=True):
-                st.session_state["pagina"] = "configuracion"
-                st.experimental_rerun()
-            if st.button("👤 Gestión de usuarios", use_container_width=True):
-                st.session_state["pagina"] = "usuarios"
-                st.experimental_rerun()
-
-#    # Nuevo: acceso a OCR para todos los roles
- #   st.markdown("---")
-  #  if st.button("🖼️ OCR (extraer texto de imagen)", use_container_width=True):
-   #     st.session_state["pagina"] = "ocr"
-    #    st.experimental_rerun()
+            st.button("⚙️ Configuración", use_container_width=True, on_click=go_to, args=("configuracion",))
+            # la gestión de usuarios ahora está dentro de 'configuracion' (no aquí)
 
     st.markdown("---")
     if st.button("🚪 Cerrar sesión", use_container_width=True):
@@ -318,10 +304,10 @@ if st.session_state["pagina"] == "menu":
         st.experimental_rerun()
 
 # ==============================
-# DASHBOARD
+# DASHBOARD (ahora renombrado a "Tabla Inventario")
 # ==============================
 if st.session_state["pagina"] == "dashboard":
-    st.title("📊 Panel de Control")
+    st.title("📦 Tabla Inventario")
     df = cargar_datos()
 
     col1, col2 = st.columns(2)
@@ -687,7 +673,7 @@ if st.session_state["pagina"] == "historial":
         st.experimental_rerun()
 
 # ==============================
-# COPIA DE SEGURIDAD (Disponible para todos desde menú o aquí)
+# COPIA DE SEGURIDAD (Disponible en su propia página, no en menú principal)
 # ==============================
 if st.session_state["pagina"] == "backup":
     st.title("📦 Copia de Seguridad del Inventario")
@@ -715,7 +701,7 @@ if st.session_state["pagina"] == "backup":
         st.experimental_rerun()
 
 # ==============================
-# CONFIGURACIÓN (Solo Admin/Jefe)
+# CONFIGURACIÓN (Solo Admin/Jefe) + GESTIÓN DE USUARIOS integrada
 # ==============================
 if st.session_state["pagina"] == "configuracion":
     if st.session_state["rol"] not in ["admin"]:
@@ -756,32 +742,28 @@ if st.session_state["pagina"] == "configuracion":
         st.info("No hay historial para descargar todavía.")
 
     st.markdown("---")
-    if st.button("⬅️ Volver al menú principal"):
-        st.session_state["pagina"] = "menu"
-        st.experimental_rerun()
-
-# ==============================
-# GESTIÓN DE USUARIOS (Admin/Jefe)
-# ==============================
-if st.session_state["pagina"] == "usuarios":
-    if st.session_state["rol"] != "admin":
-        st.error("❌ No tienes permiso para acceder a esta sección.")
-        st.stop()
-
-    st.title("👥 Gestión de Usuarios")
+    # ----------------------------
+    # Gestión de usuarios integrada
+    # ----------------------------
+    st.subheader("👥 Gestión de Usuarios")
     usuarios = cargar_usuarios()
 
-    st.subheader("Usuarios actuales")
-    usuarios_display = {k: {"rol": v["rol"]} for k, v in usuarios.items()}
-    st.json(usuarios_display)
+    st.markdown("**Usuarios actuales**")
+    # Mostrar tabla más presentable
+    usuarios_data = [{"Usuario": u, "Rol": info["rol"]} for u, info in usuarios.items()]
+    if usuarios_data:
+        df_usuarios_display = pd.DataFrame(usuarios_data)
+        st.table(df_usuarios_display)
+    else:
+        st.info("No hay usuarios definidos.")
 
     st.divider()
     st.subheader("Agregar nuevo usuario")
-    nuevo_user = st.text_input("Nombre de usuario", key="nuevo_user")
-    nueva_clave = st.text_input("Contraseña", type="password", key="nueva_clave")
-    nuevo_rol = st.selectbox("Rol", ["admin", "bodeguero", "vendedor"], key="nuevo_rol")
+    nuevo_user = st.text_input("Nombre de usuario", key="cfg_nuevo_user")
+    nueva_clave = st.text_input("Contraseña", type="password", key="cfg_nueva_clave")
+    nuevo_rol = st.selectbox("Rol", ["admin", "bodeguero", "vendedor"], key="cfg_nuevo_rol")
 
-    if st.button("➕ Crear usuario"):
+    if st.button("➕ Crear usuario", key="cfg_crear_user"):
         if not nuevo_user or not nueva_clave:
             st.warning("Completa nombre y contraseña.")
         elif nuevo_user in usuarios:
@@ -794,11 +776,11 @@ if st.session_state["pagina"] == "usuarios":
 
     st.divider()
     st.subheader("Modificar usuario existente")
-    usuario_sel = st.selectbox("Seleccionar usuario", list(usuarios.keys()), key="usuario_sel")
-    nueva_clave_mod = st.text_input("Nueva contraseña (dejar vacío para no cambiar)", type="password", key="clave_mod")
-    nuevo_rol_mod = st.selectbox("Nuevo rol", ["admin", "bodeguero", "vendedor"], index=["admin", "bodeguero", "vendedor"].index(usuarios[usuario_sel]["rol"]), key="rol_mod")
+    usuario_sel = st.selectbox("Seleccionar usuario", list(usuarios.keys()), key="cfg_usuario_sel")
+    nueva_clave_mod = st.text_input("Nueva contraseña (dejar vacío para no cambiar)", type="password", key="cfg_clave_mod")
+    nuevo_rol_mod = st.selectbox("Nuevo rol", ["admin", "bodeguero", "vendedor"], index=["admin", "bodeguero", "vendedor"].index(usuarios[usuario_sel]["rol"]), key="cfg_rol_mod")
 
-    if st.button("💾 Guardar cambios"):
+    if st.button("💾 Guardar cambios", key="cfg_guardar_cambios"):
         if usuario_sel == "admin" and nuevo_rol_mod != "admin":
             st.warning("No puedes cambiar el rol del administrador principal.")
         else:
@@ -811,8 +793,8 @@ if st.session_state["pagina"] == "usuarios":
 
     st.divider()
     st.subheader("Eliminar usuario")
-    eliminar_user = st.selectbox("Seleccionar usuario a eliminar", [u for u in usuarios.keys() if u != "admin"], key="eliminar_user")
-    if st.button("🗑️ Eliminar usuario"):
+    eliminar_user = st.selectbox("Seleccionar usuario a eliminar", [u for u in usuarios.keys() if u != "admin"], key="cfg_eliminar_user")
+    if st.button("🗑️ Eliminar usuario", key="cfg_eliminar_btn"):
         if eliminar_user in usuarios:
             del usuarios[eliminar_user]
             guardar_usuarios(usuarios)
@@ -821,6 +803,12 @@ if st.session_state["pagina"] == "usuarios":
         else:
             st.error("Usuario no encontrado.")
 
-    if st.button("⬅️ Volver al menú principal"):
+    st.markdown("---")
+    if st.button("⬅️ Volver al menú principal", key="cfg_volver"):
         st.session_state["pagina"] = "menu"
         st.experimental_rerun()
+
+# ==============================
+# Nota: eliminé la sección independiente 'usuarios' del menú principal
+# porque ahora la gestión está embebida en 'configuracion'.
+# ==============================
