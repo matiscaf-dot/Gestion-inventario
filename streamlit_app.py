@@ -15,8 +15,8 @@ url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
-usuario = "hector"
-clave_plana = "fulltime"
+usuario = "admin"
+clave_plana = "1234"
 
 hashed = bcrypt.hashpw(clave_plana.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
