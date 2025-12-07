@@ -226,7 +226,10 @@ elif opcion == "Salidas":
 # SECCIÓN FACTURAS
 # ==============================
 elif opcion == "Facturas":
-    st.title("🧾 Ingreso de Facturas")
+    st.title("🧾 Ingreso y gestión de Facturas")
+
+    # --- Formulario de ingreso de factura ---
+    st.subheader("Registrar nueva factura")
     with st.form("form_factura"):
         numero = st.text_input("Número de factura")
         proveedor = st.text_input("Proveedor")
@@ -238,4 +241,137 @@ elif opcion == "Facturas":
         productos = []
         for i in range(cantidad_items):
             st.write(f"Producto {i+1}")
-            codigo = st.text_input(f"Código producto {i+1}", key=f
+            col1, col2, col3, col4 = st.columns([1, 2, 1, 1], gap="small")
+            with col1:
+                codigo = st.text_input(f"Código {i+1}", key=f"codigo_{i}")
+            with col2:
+                nombre = st.text_input(f"Nombre {i+1}", key=f"nombre_{i}")
+            with col3:
+                cantidad = st.number_input(f"Cantidad {i+1}", min_value=1, step=1, key=f"cantidad_{i}")
+            with col4:
+                precio_costo = st.number_input(f"Costo {i+1}", min_value=0.0, step=0.01, key=f"costo_{i}")
+
+            productos.append({
+                "codigo": codigo.strip(),
+                "nombre": nombre.strip(),
+                "cantidad": int(cantidad),
+                "precio_costo": float(precio_costo)
+            })
+
+        enviar = st.form_submit_button("Registrar Factura")
+
+        if enviar:
+            # Validación mínima
+            if not numero or not proveedor:
+                st.error("Debes ingresar número y proveedor.")
+            elif any(p["codigo"] == "" for p in productos):
+                st.error("Todos los productos deben tener código.")
+            else:
+                try:
+                    registrar_factura(numero, proveedor, fecha, productos, st.session_state["usuario"])
+                    st.success("✅ Factura registrada y productos ingresados al inventario")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error al registrar la factura: {e}")
+
+    st.divider()
+
+    # --- Listado de facturas con detalle expandible ---
+    st.subheader("Facturas registradas")
+
+    def cargar_facturas():
+        resp = supabase.table("facturas").select("*").order("fecha", desc=True).execute()
+        return pd.DataFrame(resp.data) if resp.data else pd.DataFrame()
+
+    def cargar_detalle_factura(factura_id: str):
+        resp = supabase.table("factura_detalle").select("*").eq("factura_id", factura_id).execute()
+        return pd.DataFrame(resp.data) if resp.data else pd.DataFrame()
+
+    df_facturas = cargar_facturas()
+
+    if df_facturas.empty:
+        st.info("No hay facturas registradas.")
+    else:
+        # Tabla simple
+        st.dataframe(df_facturas, use_container_width=True)
+
+        # Detalle expandible por factura
+        st.write("Ver detalle por factura")
+        for _, row in df_facturas.iterrows():
+            with st.expander(f"Factura {row['numero']} — Proveedor: {row['proveedor']} — Fecha: {row['fecha']}"):
+                df_det = cargar_detalle_factura(row["id"])
+                if df_det.empty:
+                    st.info("Sin detalle.")
+                else:
+                    st.dataframe(df_det, use_container_width=True)
+
+                # Acciones sobre la factura
+                colA, colB = st.columns([1, 1], gap="small")
+                with colA:
+                    # Reingresar productos al inventario (útil si hubo fallo previo)
+                    if st.button("Reaplicar entradas al inventario", key=f"reaplicar_{row['id']}"):
+                        try:
+                            # Reaplicar cada detalle como entrada
+                            for _, d in df_det.iterrows():
+                                registrar_movimiento(
+                                    "entrada",
+                                    d["codigo"],
+                                    d.get("nombre", ""),
+                                    int(d["cantidad"]),
+                                    usuario_actual=st.session_state["usuario"],
+                                    precio_costo=float(d.get("precio_costo", 0.0))
+                                )
+                            st.success("✅ Entradas reaplicadas al inventario.")
+                        except Exception as e:
+                            st.error(f"❌ Error al reaplicar entradas: {e}")
+
+                with colB:
+                    # Eliminar factura (CASCADE elimina detalles automáticamente)
+                    if st.button("Eliminar factura (y su detalle)", key=f"eliminar_{row['id']}"):
+                        try:
+                            supabase.table("facturas").delete().eq("id", row["id"]).execute()
+                            st.success("🗑️ Factura y detalle eliminados.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error al eliminar factura: {e}")
+
+# ==============================
+# SECCIÓN HISTORIAL
+# ==============================
+elif opcion == "Historial":
+    st.title("📜 Historial de Movimientos")
+    df_hist = cargar_historial()
+    if not df_hist.empty:
+        # Ordenar por fecha descendente
+        if "fecha" in df_hist.columns:
+            try:
+                df_hist["fecha"] = pd.to_datetime(df_hist["fecha"])
+                df_hist = df_hist.sort_values("fecha", ascending=False)
+            except:
+                pass
+        st.dataframe(df_hist, use_container_width=True)
+    else:
+        st.info("No hay historial registrado.")
+
+# ==============================
+# SECCIÓN CONFIGURACIÓN
+# ==============================
+elif opcion == "Configuración":
+    st.title("⚙️ Configuración de Usuarios")
+    st.write("Agregar nuevo usuario:")
+    with st.form("form_usuario"):
+        nuevo_usuario = st.text_input("Usuario")
+        clave_usuario = st.text_input("Clave", type="password")
+        rol_usuario = st.selectbox("Rol", ["admin", "vendedor", "bodeguero"])
+        enviar = st.form_submit_button("Agregar Usuario")
+        if enviar:
+            usuarios = cargar_usuarios()  # refrescar
+            if nuevo_usuario in usuarios:
+                st.error("El usuario ya existe.")
+            else:
+                try:
+                    guardar_usuario(nuevo_usuario, clave_usuario, rol_usuario)
+                    st.success(f"Usuario {nuevo_usuario} agregado correctamente.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error al agregar usuario: {e}")
