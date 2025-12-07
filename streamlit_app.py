@@ -252,7 +252,7 @@ if not st.session_state["logueado"]:
             st.session_state["rol"] = usuarios[usuario_input]["rol"]
             st.session_state["pagina"] = "menu"
             st.success("✅ Inicio de sesión correcto")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Usuario o contraseña incorrectos.")
     st.stop()
@@ -301,7 +301,7 @@ if st.session_state["pagina"] == "menu":
         st.session_state["rol"] = None
         st.session_state["usuario"] = None
         st.success("Sesión cerrada correctamente 👋")
-        st.experimental_rerun()
+        st.rerun()
 
 # ==============================
 # DASHBOARD (ahora renombrado a "Tabla Inventario")
@@ -321,7 +321,7 @@ if st.session_state["pagina"] == "dashboard":
 
     if st.button("⬅️ Volver al menú principal"):
         st.session_state["pagina"] = "menu"
-        st.experimental_rerun()
+        st.rerun()
 
 # ==============================
 # PRODUCTOS
@@ -364,14 +364,14 @@ if st.session_state["pagina"] == "productos":
                 df = pd.concat([df, nueva_fila], ignore_index=True)
             guardar_datos(df)
             st.success("✅ Producto guardado correctamente.")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.warning("Completa todos los campos antes de guardar.")
 
     st.markdown("---")
     if st.button("⬅️ Volver al menú principal"):
         st.session_state["pagina"] = "menu"
-        st.experimental_rerun()
+        st.rerun()
 
 # ==============================
 # ENTRADAS (con cámara)
@@ -456,11 +456,11 @@ if st.session_state["pagina"] == "entradas":
         st.session_state.pop("ocr_codigo", None)
         st.session_state.pop("ocr_nombre", None)
         st.success(f"Entrada registrada correctamente. Producto: {nombre} (+{cantidad})")
-        st.experimental_rerun()
+        st.rerun()
 
     if st.button("⬅️ Volver al menú principal"):
         st.session_state["pagina"] = "menu"
-        st.experimental_rerun()
+        st.rerun()
 
 # ==============================
 # SALIDAS (con cámara)
@@ -534,7 +534,7 @@ if st.session_state["pagina"] == "salidas":
                 if boleta_path:
                     st.session_state["boleta_subida"] = boleta_path
                 st.success(f"Salida registrada correctamente. Producto: {codigo} (-{cantidad})")
-                st.experimental_rerun()
+                st.rerun()
 
     if st.button("⬅️ Volver al menú principal"):
         st.session_state["pagina"] = "menu"
@@ -601,7 +601,7 @@ if st.session_state["pagina"] == "ocr":
                             st.session_state["ocr_nombre"] = guessed_nombre
                             st.success("Datos precargados. Redirigiendo a Entradas...")
                             st.session_state["pagina"] = "entradas"
-                            st.experimental_rerun()
+                            st.rerun()
                     else:
                         st.error("No se pudo extraer texto con LightOnOCR. Revisa los errores mostrados arriba.")
             else:
@@ -631,11 +631,11 @@ if st.session_state["pagina"] == "ocr":
                         st.session_state["ocr_nombre"] = guessed_nombre
                         st.success("Datos precargados. Redirigiendo a Entradas...")
                         st.session_state["pagina"] = "entradas"
-                        st.experimental_rerun()
+                        st.rerun()
 
     if st.button("⬅️ Volver al menú principal"):
         st.session_state["pagina"] = "menu"
-        st.experimental_rerun()
+        st.rerun()
 
 # ==============================
 # HISTORIAL (Visible para todos)
@@ -670,7 +670,7 @@ if st.session_state["pagina"] == "historial":
 
     if st.button("⬅️ Volver al menú principal"):
         st.session_state["pagina"] = "menu"
-        st.experimental_rerun()
+        st.rerun()
 
 # ==============================
 # COPIA DE SEGURIDAD (Disponible en su propia página, no en menú principal)
@@ -698,7 +698,7 @@ if st.session_state["pagina"] == "backup":
 
     if st.button("⬅️ Volver al menú principal"):
         st.session_state["pagina"] = "menu"
-        st.experimental_rerun()
+        st.rerun()
 
 # ==============================
 # CONFIGURACIÓN (Solo Admin/Jefe) + GESTIÓN DE USUARIOS integrada
@@ -731,7 +731,7 @@ if st.session_state["pagina"] == "configuracion":
         df_vacio = pd.DataFrame(columns=["codigo", "nombre", "categoria", "cantidad", "fecha_ingreso"])
         guardar_datos(df_vacio)
         st.success("Inventario reiniciado correctamente.")
-        st.experimental_rerun()
+        st.rerun()
 
     # Exportar historial completo (solo admin)
     if os.path.exists(HISTORIAL_FILE):
@@ -772,7 +772,7 @@ if st.session_state["pagina"] == "configuracion":
             usuarios[nuevo_user] = {"clave": nueva_clave, "rol": nuevo_rol}
             guardar_usuarios(usuarios)
             st.success("Usuario creado correctamente.")
-            st.experimental_rerun()
+            st.rerun()
 
     st.divider()
     st.subheader("Modificar usuario existente")
@@ -789,7 +789,7 @@ if st.session_state["pagina"] == "configuracion":
             usuarios[usuario_sel]["rol"] = nuevo_rol_mod
             guardar_usuarios(usuarios)
             st.success("Usuario modificado correctamente.")
-            st.experimental_rerun()
+            st.rerun()
 
     st.divider()
     st.subheader("Eliminar usuario")
@@ -799,14 +799,14 @@ if st.session_state["pagina"] == "configuracion":
             del usuarios[eliminar_user]
             guardar_usuarios(usuarios)
             st.success("Usuario eliminado.")
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Usuario no encontrado.")
 
     st.markdown("---")
     if st.button("⬅️ Volver al menú principal", key="cfg_volver"):
         st.session_state["pagina"] = "menu"
-        st.experimental_rerun()
+        st.rerun()
 
 # ==============================
 # Nota: eliminé la sección independiente 'usuarios' del menú principal
