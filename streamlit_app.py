@@ -14,22 +14,8 @@ st.set_page_config(page_title="Inventario FullTime", layout="wide")
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
-def crear_usuario_por_defecto():
-    # Verificar si ya existe el usuario admin
-    response = supabase.table("usuarios").select("*").eq("usuario", "admin").execute()
-    if not response.data:  # Si no existe, lo creamos
-        hashed = hash_password("1234")  # Contraseña por defecto
-        supabase.table("usuarios").insert({
-            "usuario": "admin",
-            "clave": hashed,
-            "rol": "admin"
-        }).execute()
-        print("✅ Usuario admin creado por defecto con clave 1234")
-#crear_usuario_por_defecto()
-def actualizar_clave(usuario, nueva_clave):
-    hashed = hash_password(nueva_clave)
-    supabase.table("usuarios").update({"clave": hashed}).eq("usuario", usuario).execute()
 
+# ==============================
 # FUNCIONES AUXILIARES
 # ==============================
 def hash_password(password: str) -> str:
@@ -39,6 +25,23 @@ def hash_password(password: str) -> str:
 def check_password(password: str, hashed: str) -> bool:
     """Verifica una contraseña contra su hash"""
     return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
+
+# ==============================
+# USUARIO POR DEFECTO
+# ==============================
+def crear_usuario_por_defecto():
+    response = supabase.table("usuarios").select("*").eq("usuario", "admin").execute()
+    if not response.data:  # Si no existe, lo creamos
+        hashed = hash_password("1234")
+        supabase.table("usuarios").insert({
+            "usuario": "admin",
+            "clave": hashed,
+            "rol": "admin"
+        }).execute()
+        print("✅ Usuario admin creado por defecto con clave 1234")
+
+# Crear usuario por defecto al iniciar
+crear_usuario_por_defecto()
 
 # ==============================
 # USUARIOS
@@ -223,15 +226,3 @@ elif opcion == "Configuración":
             else:
                 guardar_usuario(nuevo_usuario, clave_usuario, rol_usuario)
                 st.success(f"Usuario {nuevo_usuario} agregado correctamente.")
-st.write("Actualizar contraseña de usuario existente:")
-with st.form("form_actualizar_clave"):
-    usuario_existente = st.text_input("Usuario existente")
-    nueva_clave = st.text_input("Nueva clave", type="password")
-    actualizar = st.form_submit_button("Actualizar contraseña")
-    if actualizar:
-        if usuario_existente in usuarios:
-            actualizar_clave(usuario_existente, nueva_clave)
-            st.success(f"Contraseña de {usuario_existente} actualizada correctamente.")
-        else:
-            st.error("El usuario no existe.")
-
