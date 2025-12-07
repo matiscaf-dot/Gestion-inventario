@@ -538,7 +538,7 @@ if st.session_state["pagina"] == "salidas":
 
     if st.button("⬅️ Volver al menú principal"):
         st.session_state["pagina"] = "menu"
-        st.experimental_rerun()
+        st.rerun()
 
 # ==============================
 # OCR PAGE (opcional, muestra y precarga)
