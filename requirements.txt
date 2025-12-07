@@ -11,3 +11,5 @@ opencv-python
 PyGithub
 supabase
 bcrypt
+pdfplumber
+pytesseract
