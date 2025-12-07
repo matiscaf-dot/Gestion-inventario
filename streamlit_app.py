@@ -2,8 +2,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import os
-import json
+import bcrypt
 from supabase import create_client, Client
 
 # ==============================
@@ -19,12 +18,13 @@ supabase: Client = create_client(url, key)
 # ==============================
 # FUNCIONES AUXILIARES
 # ==============================
-def is_number(s):
-    try:
-        float(s)
-        return True
-    except:
-        return False
+def hash_password(password: str) -> str:
+    """Genera un hash seguro para la contraseña"""
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+def check_password(password: str, hashed: str) -> bool:
+    """Verifica una contraseña contra su hash"""
+    return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
 # ==============================
 # USUARIOS
@@ -35,9 +35,10 @@ def cargar_usuarios():
     return usuarios
 
 def guardar_usuario(usuario, clave, rol):
+    hashed = hash_password(clave)
     supabase.table("usuarios").insert({
         "usuario": usuario,
-        "clave": clave,
+        "clave": hashed,
         "rol": rol
     }).execute()
 
@@ -120,7 +121,7 @@ if not st.session_state["logueado"]:
     clave_input = st.text_input("Contraseña", type="password")
 
     if st.button("Iniciar sesión"):
-        if usuario_input in usuarios and usuarios[usuario_input]["clave"] == clave_input:
+        if usuario_input in usuarios and check_password(clave_input, usuarios[usuario_input]["clave"]):
             st.session_state["logueado"] = True
             st.session_state["usuario"] = usuario_input
             st.session_state["rol"] = usuarios[usuario_input]["rol"]
