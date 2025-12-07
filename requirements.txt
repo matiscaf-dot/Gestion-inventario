@@ -10,3 +10,4 @@ pyzbar
 opencv-python
 PyGithub
 supabase
+bcrypt
