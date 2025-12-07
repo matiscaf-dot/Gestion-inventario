@@ -19,11 +19,9 @@ supabase: Client = create_client(url, key)
 # FUNCIONES AUXILIARES
 # ==============================
 def hash_password(password: str) -> str:
-    """Genera un hash seguro para la contraseña"""
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 def check_password(password: str, hashed: str) -> bool:
-    """Verifica una contraseña contra su hash"""
     return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
 # ==============================
@@ -31,7 +29,7 @@ def check_password(password: str, hashed: str) -> bool:
 # ==============================
 def crear_usuario_por_defecto():
     response = supabase.table("usuarios").select("*").eq("usuario", "admin").execute()
-    if not response.data:  # Si no existe, lo creamos
+    if not response.data:
         hashed = hash_password("1234")
         supabase.table("usuarios").insert({
             "usuario": "admin",
@@ -40,7 +38,6 @@ def crear_usuario_por_defecto():
         }).execute()
         print("✅ Usuario admin creado por defecto con clave 1234")
 
-# Crear usuario por defecto al iniciar
 try:
     crear_usuario_por_defecto()
 except Exception as e:
@@ -122,6 +119,30 @@ def cargar_historial():
     return df
 
 # ==============================
+# FACTURAS
+# ==============================
+def registrar_factura(numero, proveedor, fecha, productos, usuario_actual):
+    factura = supabase.table("facturas").insert({
+        "numero": numero,
+        "proveedor": proveedor,
+        "fecha": fecha.isoformat()
+    }).execute()
+    factura_id = factura.data[0]["id"]
+
+    for p in productos:
+        supabase.table("factura_detalle").insert({
+            "factura_id": factura_id,
+            "codigo": p["codigo"],
+            "nombre": p["nombre"],
+            "cantidad": p["cantidad"],
+            "precio_costo": p["precio_costo"]
+        }).execute()
+
+        registrar_movimiento("entrada", p["codigo"], p["nombre"], p["cantidad"],
+                             usuario_actual=usuario_actual,
+                             precio_costo=p["precio_costo"])
+
+# ==============================
 # LOGIN Y NAVEGACIÓN
 # ==============================
 if "logueado" not in st.session_state:
@@ -155,7 +176,7 @@ if not st.session_state["logueado"]:
 # ==============================
 # MENÚ PRINCIPAL
 # ==============================
-menu = ["Productos", "Entradas", "Salidas", "Historial", "Configuración"]
+menu = ["Productos", "Entradas", "Salidas", "Facturas", "Historial", "Configuración"]
 st.sidebar.title(f"Usuario: {st.session_state['usuario']}")
 opcion = st.sidebar.radio("Menú", menu)
 
@@ -202,30 +223,19 @@ elif opcion == "Salidas":
             st.success("✅ Salida registrada")
 
 # ==============================
-# SECCIÓN HISTORIAL
+# SECCIÓN FACTURAS
 # ==============================
-elif opcion == "Historial":
-    st.title("📜 Historial de Movimientos")
-    df_hist = cargar_historial()
-    if not df_hist.empty:
-        st.dataframe(df_hist)
-    else:
-        st.info("No hay historial registrado.")
+elif opcion == "Facturas":
+    st.title("🧾 Ingreso de Facturas")
+    with st.form("form_factura"):
+        numero = st.text_input("Número de factura")
+        proveedor = st.text_input("Proveedor")
+        fecha = st.date_input("Fecha", datetime.now().date())
 
-# ==============================
-# SECCIÓN CONFIGURACIÓN
-# ==============================
-elif opcion == "Configuración":
-    st.title("⚙️ Configuración de Usuarios")
-    st.write("Agregar nuevo usuario:")
-    with st.form("form_usuario"):
-        nuevo_usuario = st.text_input("Usuario")
-        clave_usuario = st.text_input("Clave", type="password")
-        rol_usuario = st.selectbox("Rol", ["admin", "vendedor", "bodeguero"])
-        enviar = st.form_submit_button("Agregar Usuario")
-        if enviar:
-            if nuevo_usuario in usuarios:
-                st.error("El usuario ya existe.")
-            else:
-                guardar_usuario(nuevo_usuario, clave_usuario, rol_usuario)
-                st.success(f"Usuario {nuevo_usuario} agregado correctamente.")
+        st.write("Detalle de productos")
+        cantidad_items = st.number_input("Cantidad de productos", min_value=1, step=1, value=1)
+
+        productos = []
+        for i in range(cantidad_items):
+            st.write(f"Producto {i+1}")
+            codigo = st.text_input(f"Código producto {i+1}", key=f
