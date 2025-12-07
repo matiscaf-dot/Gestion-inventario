@@ -302,11 +302,11 @@ if st.session_state["pagina"] == "menu":
                 st.session_state["pagina"] = "usuarios"
                 st.experimental_rerun()
 
-    # Nuevo: acceso a OCR para todos los roles
-    st.markdown("---")
-    if st.button("🖼️ OCR (extraer texto de imagen)", use_container_width=True):
-        st.session_state["pagina"] = "ocr"
-        st.experimental_rerun()
+#    # Nuevo: acceso a OCR para todos los roles
+ #   st.markdown("---")
+  #  if st.button("🖼️ OCR (extraer texto de imagen)", use_container_width=True):
+   #     st.session_state["pagina"] = "ocr"
+    #    st.experimental_rerun()
 
     st.markdown("---")
     if st.button("🚪 Cerrar sesión", use_container_width=True):
