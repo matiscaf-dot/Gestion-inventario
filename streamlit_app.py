@@ -41,7 +41,10 @@ def crear_usuario_por_defecto():
         print("✅ Usuario admin creado por defecto con clave 1234")
 
 # Crear usuario por defecto al iniciar
-crear_usuario_por_defecto()
+try:
+    crear_usuario_por_defecto()
+except Exception as e:
+    st.warning(f"No se pudo crear usuario por defecto: {e}")
 
 # ==============================
 # USUARIOS
