@@ -4,7 +4,10 @@ import pandas as pd
 from datetime import datetime
 import bcrypt
 from supabase import create_client, Client
-
+import pdfplumber
+import pytesseract
+from PIL import Image
+import io
 # ==============================
 # CONFIGURACIÓN GENERAL
 # ==============================
@@ -222,118 +225,55 @@ elif opcion == "Salidas":
             registrar_movimiento("salida", codigo, nombre, cantidad, st.session_state["usuario"])
             st.success("✅ Salida registrada")
 
-# ==============================
-# SECCIÓN FACTURAS
-# ==============================
 elif opcion == "Facturas":
-    st.title("🧾 Ingreso y gestión de Facturas")
+    st.title("🧾 Subir factura en PDF")
 
-    # --- Formulario de ingreso de factura ---
-    st.subheader("Registrar nueva factura")
-    with st.form("form_factura"):
-        numero = st.text_input("Número de factura")
-        proveedor = st.text_input("Proveedor")
-        fecha = st.date_input("Fecha", datetime.now().date())
+    factura_file = st.file_uploader("Selecciona factura en PDF", type=["pdf"])
 
-        st.write("Detalle de productos")
-        cantidad_items = st.number_input("Cantidad de productos", min_value=1, step=1, value=1)
+    if factura_file is not None:
+        # Guardar en Supabase Storage o local
+        factura_path = os.path.join(FACTURAS_DIR, factura_file.name)
+        with open(factura_path, "wb") as f:
+            f.write(factura_file.getbuffer())
+        st.success(f"Factura subida: {factura_file.name}")
 
         productos = []
-        for i in range(cantidad_items):
-            st.write(f"Producto {i+1}")
-            col1, col2, col3, col4 = st.columns([1, 2, 1, 1], gap="small")
-            with col1:
-                codigo = st.text_input(f"Código {i+1}", key=f"codigo_{i}")
-            with col2:
-                nombre = st.text_input(f"Nombre {i+1}", key=f"nombre_{i}")
-            with col3:
-                cantidad = st.number_input(f"Cantidad {i+1}", min_value=1, step=1, key=f"cantidad_{i}")
-            with col4:
-                precio_costo = st.number_input(f"Costo {i+1}", min_value=0.0, step=0.01, key=f"costo_{i}")
 
-            productos.append({
-                "codigo": codigo.strip(),
-                "nombre": nombre.strip(),
-                "cantidad": int(cantidad),
-                "precio_costo": float(precio_costo)
-            })
+        # Extraer texto del PDF
+        with pdfplumber.open(factura_path) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    st.text(text)  # mostrar texto bruto para depuración
 
-        enviar = st.form_submit_button("Registrar Factura")
+                    # Ejemplo simple: buscar líneas con patrón "codigo nombre cantidad precio"
+                    for line in text.split("\n"):
+                        parts = line.split()
+                        if len(parts) >= 4 and parts[2].isdigit():
+                            codigo = parts[0]
+                            nombre = parts[1]
+                            cantidad = int(parts[2])
+                            precio_costo = float(parts[3])
+                            productos.append({
+                                "codigo": codigo,
+                                "nombre": nombre,
+                                "cantidad": cantidad,
+                                "precio_costo": precio_costo
+                            })
 
-        if enviar:
-            # Validación mínima
-            if not numero or not proveedor:
-                st.error("Debes ingresar número y proveedor.")
-            elif any(p["codigo"] == "" for p in productos):
-                st.error("Todos los productos deben tener código.")
-            else:
-                try:
-                    registrar_factura(numero, proveedor, fecha, productos, st.session_state["usuario"])
-                    st.success("✅ Factura registrada y productos ingresados al inventario")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Error al registrar la factura: {e}")
+        # Mostrar productos detectados
+        if productos:
+            st.write("Productos detectados en la factura:")
+            st.dataframe(productos)
 
-    st.divider()
-
-    # --- Listado de facturas con detalle expandible ---
-    st.subheader("Facturas registradas")
-
-    def cargar_facturas():
-        resp = supabase.table("facturas").select("*").order("fecha", desc=True).execute()
-        return pd.DataFrame(resp.data) if resp.data else pd.DataFrame()
-
-    def cargar_detalle_factura(factura_id: str):
-        resp = supabase.table("factura_detalle").select("*").eq("factura_id", factura_id).execute()
-        return pd.DataFrame(resp.data) if resp.data else pd.DataFrame()
-
-    df_facturas = cargar_facturas()
-
-    if df_facturas.empty:
-        st.info("No hay facturas registradas.")
-    else:
-        # Tabla simple
-        st.dataframe(df_facturas, use_container_width=True)
-
-        # Detalle expandible por factura
-        st.write("Ver detalle por factura")
-        for _, row in df_facturas.iterrows():
-            with st.expander(f"Factura {row['numero']} — Proveedor: {row['proveedor']} — Fecha: {row['fecha']}"):
-                df_det = cargar_detalle_factura(row["id"])
-                if df_det.empty:
-                    st.info("Sin detalle.")
-                else:
-                    st.dataframe(df_det, use_container_width=True)
-
-                # Acciones sobre la factura
-                colA, colB = st.columns([1, 1], gap="small")
-                with colA:
-                    # Reingresar productos al inventario (útil si hubo fallo previo)
-                    if st.button("Reaplicar entradas al inventario", key=f"reaplicar_{row['id']}"):
-                        try:
-                            # Reaplicar cada detalle como entrada
-                            for _, d in df_det.iterrows():
-                                registrar_movimiento(
-                                    "entrada",
-                                    d["codigo"],
-                                    d.get("nombre", ""),
-                                    int(d["cantidad"]),
-                                    usuario_actual=st.session_state["usuario"],
-                                    precio_costo=float(d.get("precio_costo", 0.0))
-                                )
-                            st.success("✅ Entradas reaplicadas al inventario.")
-                        except Exception as e:
-                            st.error(f"❌ Error al reaplicar entradas: {e}")
-
-                with colB:
-                    # Eliminar factura (CASCADE elimina detalles automáticamente)
-                    if st.button("Eliminar factura (y su detalle)", key=f"eliminar_{row['id']}"):
-                        try:
-                            supabase.table("facturas").delete().eq("id", row["id"]).execute()
-                            st.success("🗑️ Factura y detalle eliminados.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Error al eliminar factura: {e}")
+            if st.button("Registrar productos en inventario"):
+                for p in productos:
+                    registrar_movimiento("entrada", p["codigo"], p["nombre"], p["cantidad"],
+                                         usuario_actual=st.session_state["usuario"],
+                                         precio_costo=p["precio_costo"])
+                st.success("✅ Productos registrados en inventario")
+        else:
+            st.warning("No se detectaron productos automáticamente. Revisa el formato del PDF.")
 
 # ==============================
 # SECCIÓN HISTORIAL
