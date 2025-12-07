@@ -228,52 +228,68 @@ elif opcion == "Salidas":
 elif opcion == "Facturas":
     st.title("🧾 Subir factura en PDF")
 
+    numero = st.text_input("Número de factura")
+    proveedor = st.text_input("Proveedor")
+    fecha = st.date_input("Fecha", datetime.now().date())
     factura_file = st.file_uploader("Selecciona factura en PDF", type=["pdf"])
 
-    if factura_file is not None:
-        # Guardar en Supabase Storage o local
-        factura_path = os.path.join(FACTURAS_DIR, factura_file.name)
-        with open(factura_path, "wb") as f:
-            f.write(factura_file.getbuffer())
-        st.success(f"Factura subida: {factura_file.name}")
+    if factura_file is not None and st.button("Registrar Factura"):
+        try:
+            # 1. Subir archivo a Supabase Storage
+            supabase.storage.from_("facturas").upload(
+                factura_file.name,
+                factura_file.getvalue()
+            )
+            url_publica = supabase.storage.from_("facturas").get_public_url(factura_file.name)
 
-        productos = []
+            # 2. Insertar cabecera en tabla facturas
+            factura = supabase.table("facturas").insert({
+                "numero": numero,
+                "proveedor": proveedor,
+                "fecha": fecha.isoformat(),
+                "archivo_url": url_publica
+            }).execute()
+            factura_id = factura.data[0]["id"]
 
-        # Extraer texto del PDF
-        with pdfplumber.open(factura_path) as pdf:
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text:
-                    st.text(text)  # mostrar texto bruto para depuración
+            # 3. Extraer productos del PDF
+            productos = []
+            with pdfplumber.open(io.BytesIO(factura_file.getvalue())) as pdf:
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text:
+                        for line in text.split("\n"):
+                            parts = line.split()
+                            if len(parts) >= 4 and parts[2].isdigit():
+                                codigo = parts[0]
+                                nombre = parts[1]
+                                cantidad = int(parts[2])
+                                precio_costo = float(parts[3])
+                                productos.append({
+                                    "codigo": codigo,
+                                    "nombre": nombre,
+                                    "cantidad": cantidad,
+                                    "precio_costo": precio_costo
+                                })
 
-                    # Ejemplo simple: buscar líneas con patrón "codigo nombre cantidad precio"
-                    for line in text.split("\n"):
-                        parts = line.split()
-                        if len(parts) >= 4 and parts[2].isdigit():
-                            codigo = parts[0]
-                            nombre = parts[1]
-                            cantidad = int(parts[2])
-                            precio_costo = float(parts[3])
-                            productos.append({
-                                "codigo": codigo,
-                                "nombre": nombre,
-                                "cantidad": cantidad,
-                                "precio_costo": precio_costo
-                            })
+            # 4. Insertar detalle y actualizar inventario
+            for p in productos:
+                supabase.table("factura_detalle").insert({
+                    "factura_id": factura_id,
+                    "codigo": p["codigo"],
+                    "nombre": p["nombre"],
+                    "cantidad": p["cantidad"],
+                    "precio_costo": p["precio_costo"]
+                }).execute()
 
-        # Mostrar productos detectados
-        if productos:
-            st.write("Productos detectados en la factura:")
-            st.dataframe(productos)
+                registrar_movimiento("entrada", p["codigo"], p["nombre"], p["cantidad"],
+                                     usuario_actual=st.session_state["usuario"],
+                                     precio_costo=p["precio_costo"])
 
-            if st.button("Registrar productos en inventario"):
-                for p in productos:
-                    registrar_movimiento("entrada", p["codigo"], p["nombre"], p["cantidad"],
-                                         usuario_actual=st.session_state["usuario"],
-                                         precio_costo=p["precio_costo"])
-                st.success("✅ Productos registrados en inventario")
-        else:
-            st.warning("No se detectaron productos automáticamente. Revisa el formato del PDF.")
+            st.success("✅ Factura registrada con productos ingresados al inventario")
+
+        except Exception as e:
+            st.error(f"❌ Error al registrar factura: {e}")
+
 
 # ==============================
 # SECCIÓN HISTORIAL
