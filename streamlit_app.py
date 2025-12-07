@@ -221,7 +221,7 @@ def run_pytesseract_on_image(pil_image):
 # ==============================
 def go_to(page):
     st.session_state["pagina"] = page
-    st.experimental_rerun()
+    st.rerun()
 
 # ==============================
 # INICIALIZACIÓN DE SESSION_STATE (UNA SOLA VEZ)
