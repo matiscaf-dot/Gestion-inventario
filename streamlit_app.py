@@ -25,7 +25,7 @@ def crear_usuario_por_defecto():
             "rol": "admin"
         }).execute()
         print("✅ Usuario admin creado por defecto con clave 1234")
-crear_usuario_por_defecto()
+#crear_usuario_por_defecto()
 def actualizar_clave(usuario, nueva_clave):
     hashed = hash_password(nueva_clave)
     supabase.table("usuarios").update({"clave": hashed}).eq("usuario", usuario).execute()
