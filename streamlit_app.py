@@ -14,6 +14,18 @@ st.set_page_config(page_title="Inventario FullTime", layout="wide")
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
+
+# Usuario y clave actual
+usuario = "admin"
+clave_plana = "1234"
+
+# Generar hash bcrypt
+hashed = bcrypt.hashpw(clave_plana.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+# Actualizar en Supabase
+supabase.table("usuarios").update({"clave": hashed}).eq("usuario", usuario).execute()
+
+print("✅ Contraseña actualizada correctamente.")
 def actualizar_clave(usuario, nueva_clave):
     hashed = hash_password(nueva_clave)
     supabase.table("usuarios").update({"clave": hashed}).eq("usuario", usuario).execute()
