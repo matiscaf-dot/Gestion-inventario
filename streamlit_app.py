@@ -6,7 +6,7 @@ import os
 import json
 from io import BytesIO
 from PIL import Image
-from pyzbar.pyzbar import decode
+
 # ==============================
 # CONFIGURACIÓN GENERAL
 # ==============================
@@ -27,6 +27,7 @@ os.makedirs(CAPTURAS_DIR, exist_ok=True)
 
 # ==============================
 # Intento de import para lector de códigos de barras (pyzbar)
+# No se importa al inicio con from pyzbar... para evitar romper la app cuando falta zbar.
 # ==============================
 _HAS_PYZBAR = False
 try:
@@ -39,7 +40,7 @@ except Exception:
 # FUNCIONES AUXILIARES
 # ==============================
 def asegurar_usuarios_iniciales():
-    """Si no existe usuarios.json, crea uno con usuarios por defecto (opción B: diccionario hardcode)."""
+    """Si no existe usuarios.json, crea uno con usuarios por defecto."""
     if not os.path.exists(USUARIOS_FILE):
         usuarios_default = {
             "admin": {"clave": "1234", "rol": "admin"},
@@ -60,20 +61,34 @@ def guardar_usuarios(data):
     with open(USUARIOS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 
+# --- Helpers para Excel con múltiples hojas (productos + proveedores) ---
 def cargar_datos():
-    """Carga inventario desde excel y garantiza columnas mínimas en minúsculas."""
+    """
+    Carga la hoja 'productos' desde DATA_FILE. Si no existe, intenta leer la primera hoja.
+    Devuelve DataFrame con columnas mínimas garantizadas.
+    """
     if os.path.exists(DATA_FILE):
-        df = pd.read_excel(DATA_FILE)
-        # Normalizar columnas
-        df.columns = df.columns.str.lower().str.replace(" ", "_")
+        # Intentar leer hoja 'productos'
+        try:
+            df = pd.read_excel(DATA_FILE, sheet_name="productos")
+        except Exception:
+            # fallback: primera hoja
+            try:
+                df = pd.read_excel(DATA_FILE, sheet_name=0)
+            except Exception:
+                df = pd.DataFrame()
     else:
+        df = pd.DataFrame()
+
+    if df is None or df.empty:
         df = pd.DataFrame(columns=[
             "codigo", "nombre", "descripcion", "categoria",
-            "cantidad", "precio_costo", "precio_venta", "fecha_ingreso"
+            "cantidad", "precio_costo", "precio_venta", "fecha_ingreso", "proveedor"
         ])
-        df.to_excel(DATA_FILE, index=False)
-    # Asegurar columnas necesarias
-    expected_cols = ["codigo", "nombre", "descripcion", "categoria", "cantidad", "precio_costo", "precio_venta", "fecha_ingreso"]
+    # Normalizar columnas
+    df.columns = df.columns.str.lower().str.replace(" ", "_")
+    expected_cols = ["codigo", "nombre", "descripcion", "categoria",
+                     "cantidad", "precio_costo", "precio_venta", "fecha_ingreso", "proveedor"]
     for col in expected_cols:
         if col not in df.columns:
             if col in ["cantidad"]:
@@ -92,7 +107,50 @@ def cargar_datos():
             df[pcol] = pd.to_numeric(df[pcol], errors="coerce").fillna(0.0).astype(float)
         except Exception:
             df[pcol] = df[pcol].apply(lambda x: float(x) if pd.notna(x) and is_number(str(x)) else 0.0)
+    # Asegurar codigo como string
+    df["codigo"] = df["codigo"].astype(str)
     return df
+
+def cargar_proveedores():
+    """
+    Lee la hoja 'proveedores' del excel si existe. Si no, devuelve df vacío con columnas esperadas.
+    """
+    if os.path.exists(DATA_FILE):
+        try:
+            prov = pd.read_excel(DATA_FILE, sheet_name="proveedores")
+            prov.columns = prov.columns.str.lower().str.replace(" ", "_")
+        except Exception:
+            prov = pd.DataFrame()
+    else:
+        prov = pd.DataFrame()
+    if prov is None or prov.empty:
+        prov = pd.DataFrame(columns=["id", "nombre", "contacto", "email", "telefono", "direccion", "notas"])
+    return prov
+
+def guardar_all(product_df, prov_df):
+    """
+    Guarda ambas hojas (productos y proveedores) en DATA_FILE.
+    Reescribe el archivo completo (ambas hojas).
+    """
+    try:
+        # Usar openpyxl (asegúrate que esté instalado)
+        with pd.ExcelWriter(DATA_FILE, engine="openpyxl") as writer:
+            product_df.to_excel(writer, sheet_name="productos", index=False)
+            prov_df.to_excel(writer, sheet_name="proveedores", index=False)
+    except Exception as e:
+        # fallback simple: guardar solo productos (no recomendable pero evita fallo total)
+        product_df.to_excel(DATA_FILE, index=False)
+
+def guardar_datos(df):
+    """
+    Guarda productos en la hoja 'productos', manteniendo la hoja 'proveedores' actual.
+    """
+    prov = cargar_proveedores()
+    guardar_all(df, prov)
+
+def guardar_proveedores(df_prov):
+    prod = cargar_datos()
+    guardar_all(prod, df_prov)
 
 def is_number(s):
     try:
@@ -101,13 +159,10 @@ def is_number(s):
     except:
         return False
 
-def guardar_datos(df):
-    # Normalizar columnas antes de guardar (sin espacios, en minúsculas)
-    df_to_save = df.copy()
-    df_to_save.columns = df_to_save.columns.str.lower().str.replace(" ", "_")
-    df_to_save.to_excel(DATA_FILE, index=False)
-
-def registrar_historial(usuario, tipo, codigo, nombre, cantidad):
+# ==============================
+# HISTORIAL (CSV) - ahora con proveedor y nota
+# ==============================
+def registrar_historial(usuario, tipo, codigo, nombre, cantidad, proveedor="", nota=""):
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     entrada = pd.DataFrame([{
         "fecha": fecha,
@@ -115,7 +170,9 @@ def registrar_historial(usuario, tipo, codigo, nombre, cantidad):
         "tipo": tipo,
         "codigo": codigo,
         "nombre": nombre,
-        "cantidad": cantidad
+        "cantidad": cantidad,
+        "proveedor": proveedor,
+        "nota": nota
     }])
     if os.path.exists(HISTORIAL_FILE):
         historial = pd.read_csv(HISTORIAL_FILE)
@@ -124,19 +181,24 @@ def registrar_historial(usuario, tipo, codigo, nombre, cantidad):
         historial = entrada
     historial.to_csv(HISTORIAL_FILE, index=False)
 
-def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None, precio_costo=None, precio_venta=None, descripcion=None, categoria=None):
+# ==============================
+# registrar movimiento (usa guardar_all internamente)
+# ==============================
+def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None,
+                         precio_costo=None, precio_venta=None, descripcion=None, categoria=None, proveedor=""):
     """
-    tipo: "entrada" o "salida"
-    cantidad: int (si es salida, debe ser positiva; la función restará)
+    tipo: "entrada" o "salida" o "nuevo" (si se crea manualmente desde productos)
+    cantidad: int
     """
     df = cargar_datos()
     df["codigo"] = df["codigo"].astype(str)
     codigo = str(codigo).strip()
+    usuario_actual = usuario_actual or "desconocido"
 
     if tipo == "entrada":
         if codigo in df["codigo"].values:
+            # actualizar cantidad y campos opcionales
             df.loc[df["codigo"] == codigo, "cantidad"] = df.loc[df["codigo"] == codigo, "cantidad"].astype(int) + int(cantidad)
-            # si se entregan precios/desc, actualizarlos si vienen
             if precio_costo is not None:
                 df.loc[df["codigo"] == codigo, "precio_costo"] = float(precio_costo)
             if precio_venta is not None:
@@ -145,7 +207,12 @@ def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None, pr
                 df.loc[df["codigo"] == codigo, "descripcion"] = descripcion
             if categoria is not None:
                 df.loc[df["codigo"] == codigo, "categoria"] = categoria
+            if proveedor:
+                df.loc[df["codigo"] == codigo, "proveedor"] = proveedor
+            guardar_datos(df)
+            registrar_historial(usuario_actual, "entrada", codigo, nombre, int(cantidad), proveedor=proveedor, nota="")
         else:
+            # producto nuevo -> crear y marcar en historial como 'nuevo'
             nueva_fila = pd.DataFrame({
                 "codigo": [codigo],
                 "nombre": [nombre if nombre else "Sin nombre"],
@@ -154,23 +221,41 @@ def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None, pr
                 "cantidad": [int(cantidad)],
                 "precio_costo": [float(precio_costo) if precio_costo is not None else 0.0],
                 "precio_venta": [float(precio_venta) if precio_venta is not None else 0.0],
-                "fecha_ingreso": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+                "fecha_ingreso": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+                "proveedor": [proveedor if proveedor else ""]
             })
             df = pd.concat([df, nueva_fila], ignore_index=True)
-        guardar_datos(df)
-        registrar_historial(usuario_actual or "desconocido", "entrada", codigo, nombre, int(cantidad))
-
+            guardar_datos(df)
+            registrar_historial(usuario_actual, "nuevo", codigo, nombre, int(cantidad), proveedor=proveedor, nota="Producto agregado como nuevo en inventario")
     elif tipo == "salida":
         if codigo in df["codigo"].values:
             idx = df.index[df["codigo"] == codigo]
             df.loc[idx, "cantidad"] = df.loc[idx, "cantidad"].astype(int) - int(cantidad)
+            # Si queda en 0 o negativo, eliminar el registro (o lo dejamos con 0 según preferencia)
             if df.loc[idx, "cantidad"].iloc[0] <= 0:
                 df = df[df["codigo"] != codigo]
             guardar_datos(df)
-            registrar_historial(usuario_actual or "desconocido", "salida", codigo, nombre, int(cantidad))
+            registrar_historial(usuario_actual, "salida", codigo, nombre, int(cantidad), proveedor=proveedor, nota="")
         else:
             st.error("❌ El producto no existe en inventario.")
             return
+    elif tipo == "nuevo":
+        # fuerza creación manual desde página Productos
+        df = cargar_datos()
+        nueva_fila = pd.DataFrame({
+            "codigo": [codigo],
+            "nombre": [nombre if nombre else "Sin nombre"],
+            "descripcion": [descripcion if descripcion else ""],
+            "categoria": [categoria if categoria else "general"],
+            "cantidad": [int(cantidad)],
+            "precio_costo": [float(precio_costo) if precio_costo is not None else 0.0],
+            "precio_venta": [float(precio_venta) if precio_venta is not None else 0.0],
+            "fecha_ingreso": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+            "proveedor": [proveedor if proveedor else ""]
+        })
+        df = pd.concat([df, nueva_fila], ignore_index=True)
+        guardar_datos(df)
+        registrar_historial(usuario_actual, "nuevo", codigo, nombre, int(cantidad), proveedor=proveedor, nota="Producto creado manualmente")
 
 # ==============================
 # Lector de código de barras desde PIL.Image usando pyzbar (si está disponible)
@@ -186,21 +271,20 @@ def decode_barcode_from_pil(pil_img):
         decoded = zbar_decode(pil_img)
         if not decoded:
             return ""
-        # Retornar data del primer barcode
         data = decoded[0].data.decode("utf-8")
         return data
     except Exception:
         return ""
 
 # ==============================
-# Helpers para navegación (evitan problemas de doble clic)
+# Helpers para navegación
 # ==============================
 def go_to(page):
     st.session_state["pagina"] = page
     st.rerun()
 
 # ==============================
-# INICIALIZACIÓN DE SESSION_STATE (UNA SOLA VEZ)
+# INICIALIZACIÓN DE SESSION_STATE
 # ==============================
 if "logueado" not in st.session_state:
     st.session_state["logueado"] = False
@@ -212,7 +296,7 @@ if "usuario" not in st.session_state:
     st.session_state["usuario"] = None
 
 # ==============================
-# LOGIN SIMPLE (con usuarios.json - opción B)
+# LOGIN
 # ==============================
 usuarios = cargar_usuarios()
 
@@ -234,40 +318,36 @@ if not st.session_state["logueado"]:
     st.stop()
 
 # ==============================
-# MENÚ PRINCIPAL (SEGÚN ROL)
+# MENÚ PRINCIPAL
 # ==============================
 if st.session_state["pagina"] == "menu":
     st.title("📦 Bienvenido a Inventario FullTime")
     st.markdown(f"**Usuario:** {st.session_state.get('usuario')} — **Rol:** {st.session_state.get('rol')}")
     rol = st.session_state.get("rol")
 
-    # Columnas por rol
     col1, col2 = st.columns(2)
 
-    # Opciones comunes / vendedor
     with col1:
         if rol in ["admin", "vendedor"]:
             st.button("📦 Tabla Inventario", use_container_width=True, on_click=go_to, args=("dashboard",))
             st.button("➖ Registrar Salida", use_container_width=True, on_click=go_to, args=("salidas",))
 
-    # Opciones bodeguero
     with col2:
         if rol in ["admin", "bodeguero"]:
             st.button("🗂️ Productos", use_container_width=True, on_click=go_to, args=("productos",))
             st.button("➕ Registrar Entrada", use_container_width=True, on_click=go_to, args=("entradas",))
 
-    # Botones adicionales para todos (ocultamos copia de seguridad del menú principal)
     st.markdown("---")
     col3, col4, col5 = st.columns(3)
     with col3:
         st.button("📝 Historial de movimientos", use_container_width=True, on_click=go_to, args=("historial",))
     with col4:
-        # espacio reservado (botón oculto intencionalmente)
-        st.write("") 
+        st.write("")
     with col5:
-        # Gestión y configuración solo admin
         if rol == "admin":
             st.button("⚙️ Configuración", use_container_width=True, on_click=go_to, args=("configuracion",))
+            # Mostrar acceso directo a proveedores (admin)
+            st.button("📇 Proveedores", use_container_width=True, on_click=go_to, args=("proveedores",))
 
     st.markdown("---")
     if st.button("🚪 Cerrar sesión", use_container_width=True):
@@ -279,12 +359,11 @@ if st.session_state["pagina"] == "menu":
         st.rerun()
 
 # ==============================
-# DASHBOARD (Tabla Inventario)
+# DASHBOARD
 # ==============================
 if st.session_state["pagina"] == "dashboard":
     st.title("📦 Tabla Inventario")
     df = cargar_datos()
-
     col1, col2 = st.columns(2)
     with col1:
         st.metric("Total de Productos", int(len(df)))
@@ -298,7 +377,7 @@ if st.session_state["pagina"] == "dashboard":
         go_to("menu")
 
 # ==============================
-# PRODUCTOS (agregar/editar) - incluye opción cámara para capturar código
+# PRODUCTOS (agregar/editar)
 # ==============================
 if st.session_state["pagina"] == "productos":
     if st.session_state["rol"] not in ["admin", "bodeguero"]:
@@ -307,9 +386,10 @@ if st.session_state["pagina"] == "productos":
 
     st.title("🗂️ Gestión de Productos")
     df = cargar_datos()
+    prov_df = cargar_proveedores()
 
     st.subheader("Listado actual")
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, use_column_width=True)
 
     st.divider()
     st.subheader("Agregar o editar producto (nuevo)")
@@ -326,7 +406,6 @@ if st.session_state["pagina"] == "productos":
         with open(cam_path, "wb") as f:
             f.write(cam_img.getbuffer())
         st.success("Imagen capturada correctamente.")
-        # Intentar decodificar código de barras si pyzbar está presente
         try:
             pil_img = Image.open(cam_path).convert("RGB")
             detected_code = decode_barcode_from_pil(pil_img)
@@ -349,20 +428,29 @@ if st.session_state["pagina"] == "productos":
     precio_costo = st.number_input("Precio costo", min_value=0.0, step=0.1, format="%.2f", value=0.0)
     precio_venta = st.number_input("Precio venta", min_value=0.0, step=0.1, format="%.2f", value=0.0)
 
+    # Proveedor (seleccionar o crear)
+    prov_options = [""] + prov_df["nombre"].astype(str).tolist()
+    proveedor_sel = st.selectbox("Proveedor (opcional)", prov_options)
+    nuevo_proveedor_txt = st.text_input("O crea un nuevo proveedor (nombre) - opcional")
+
     if st.button("💾 Guardar producto"):
         if codigo and nombre:
-            df = cargar_datos()
+            producto_df = cargar_datos()
             codigo = str(codigo).strip()
-            if codigo in df["codigo"].astype(str).values:
+            prov_choice = nuevo_proveedor_txt.strip() if nuevo_proveedor_txt.strip() else proveedor_sel
+            if codigo in producto_df["codigo"].astype(str).values:
                 # editar
-                df.loc[df["codigo"].astype(str) == codigo, "nombre"] = nombre
-                df.loc[df["codigo"].astype(str) == codigo, "descripcion"] = descripcion
-                df.loc[df["codigo"].astype(str) == codigo, "categoria"] = categoria
-                df.loc[df["codigo"].astype(str) == codigo, "cantidad"] = int(cantidad)
-                df.loc[df["codigo"].astype(str) == codigo, "precio_costo"] = float(precio_costo)
-                df.loc[df["codigo"].astype(str) == codigo, "precio_venta"] = float(precio_venta)
+                producto_df.loc[producto_df["codigo"].astype(str) == codigo, "nombre"] = nombre
+                producto_df.loc[producto_df["codigo"].astype(str) == codigo, "descripcion"] = descripcion
+                producto_df.loc[producto_df["codigo"].astype(str) == codigo, "categoria"] = categoria
+                producto_df.loc[producto_df["codigo"].astype(str) == codigo, "cantidad"] = int(cantidad)
+                producto_df.loc[producto_df["codigo"].astype(str) == codigo, "precio_costo"] = float(precio_costo)
+                producto_df.loc[producto_df["codigo"].astype(str) == codigo, "precio_venta"] = float(precio_venta)
+                producto_df.loc[producto_df["codigo"].astype(str) == codigo, "proveedor"] = prov_choice
                 st.success("✅ Producto actualizado correctamente.")
+                # registrar historial de edición como 'entrada' si cantidad aumentó? (dejamos fuera)
             else:
+                # crear nuevo producto y registrar historial tipo 'nuevo'
                 nueva_fila = pd.DataFrame({
                     "codigo": [codigo],
                     "nombre": [nombre],
@@ -371,12 +459,29 @@ if st.session_state["pagina"] == "productos":
                     "cantidad": [int(cantidad)],
                     "precio_costo": [float(precio_costo)],
                     "precio_venta": [float(precio_venta)],
-                    "fecha_ingreso": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
+                    "fecha_ingreso": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+                    "proveedor": [prov_choice]
                 })
-                df = pd.concat([df, nueva_fila], ignore_index=True)
+                producto_df = pd.concat([producto_df, nueva_fila], ignore_index=True)
                 st.success("✅ Producto agregado correctamente.")
-            guardar_datos(df)
-            go_to("productos")  # recargar la página productos
+                registrar_historial(st.session_state.get("usuario"), "nuevo", codigo, nombre, int(cantidad), proveedor=prov_choice, nota="Producto creado desde pantalla Productos")
+            # Si se creó un nuevo proveedor por el campo, lo agregamos a proveedores
+            if nuevo_proveedor_txt.strip():
+                prov_df_local = cargar_proveedores()
+                new_id = 1 if prov_df_local.empty else (prov_df_local["id"].max() + 1 if "id" in prov_df_local.columns and pd.api.types.is_numeric_dtype(prov_df_local["id"]) else len(prov_df_local) + 1)
+                prov_df_local = prov_df_local.append({
+                    "id": new_id,
+                    "nombre": nuevo_proveedor_txt.strip(),
+                    "contacto": "",
+                    "email": "",
+                    "telefono": "",
+                    "direccion": "",
+                    "notas": ""
+                }, ignore_index=True)
+                guardar_proveedores(prov_df_local)
+                st.success(f"Proveedor '{nuevo_proveedor_txt.strip()}' agregado.")
+            guardar_datos(producto_df)
+            go_to("productos")
         else:
             st.warning("Completa al menos Código y Nombre antes de guardar.")
 
@@ -395,7 +500,7 @@ if st.session_state["pagina"] == "productos":
 """)
 
 # ==============================
-# ENTRADAS (con cámara + lector de código)
+# ENTRADAS (con cámara + proveedor)
 # ==============================
 if st.session_state["pagina"] == "entradas":
     if st.session_state["rol"] not in ["admin", "bodeguero"]:
@@ -403,9 +508,10 @@ if st.session_state["pagina"] == "entradas":
         st.stop()
 
     st.title("📦 Registrar Entrada de Inventario")
+    prov_df = cargar_proveedores()
 
     # Captura por cámara (opcional) para obtener código
-    st.subheader("Capturar imagen con la cámara (opcional) para leer código de barras)")
+    st.subheader("Capturar imagen con la cámara (opcional) para leer código de barras")
     camera_image = st.camera_input("Toma una foto del producto o código")
 
     pre_codigo = ""
@@ -436,20 +542,42 @@ if st.session_state["pagina"] == "entradas":
     precio_costo = st.number_input("Precio costo (opcional)", min_value=0.0, step=0.1, format="%.2f", value=0.0)
     precio_venta = st.number_input("Precio venta (opcional)", min_value=0.0, step=0.1, format="%.2f", value=0.0)
 
+    # Proveedor en entrada: seleccionar
+    prov_options = [""] + prov_df["nombre"].astype(str).tolist()
+    proveedor_sel = st.selectbox("Proveedor asociado (opcional)", prov_options)
+    nuevo_proveedor_txt = st.text_input("O crea nuevo proveedor (nombre) - opcional")
+
     factura_file = st.file_uploader("Subir factura (opcional)", type=["pdf", "png", "jpg", "jpeg"])
 
     if st.button("✅ Registrar entrada"):
         if not codigo:
             st.warning("Ingresa o captura un código antes de registrar.")
         else:
+            prov_choice = nuevo_proveedor_txt.strip() if nuevo_proveedor_txt.strip() else proveedor_sel
             registrar_movimiento("entrada", codigo, nombre, int(cantidad), usuario_actual=st.session_state.get("usuario"),
                                 precio_costo=precio_costo if precio_costo > 0 else None,
-                                precio_venta=precio_venta if precio_venta > 0 else None)
+                                precio_venta=precio_venta if precio_venta > 0 else None,
+                                descripcion=None, categoria=None, proveedor=prov_choice)
             if factura_file:
                 factura_path = os.path.join(FACTURAS_DIR, factura_file.name)
                 with open(factura_path, "wb") as f:
                     f.write(factura_file.getbuffer())
                 st.session_state["factura_subida"] = factura_path
+            # Si se creó nuevo proveedor, guardarlo
+            if nuevo_proveedor_txt.strip():
+                prov_df_local = cargar_proveedores()
+                new_id = 1 if prov_df_local.empty else (prov_df_local["id"].max() + 1 if "id" in prov_df_local.columns and pd.api.types.is_numeric_dtype(prov_df_local["id"]) else len(prov_df_local) + 1)
+                prov_df_local = prov_df_local.append({
+                    "id": new_id,
+                    "nombre": nuevo_proveedor_txt.strip(),
+                    "contacto": "",
+                    "email": "",
+                    "telefono": "",
+                    "direccion": "",
+                    "notas": ""
+                }, ignore_index=True)
+                guardar_proveedores(prov_df_local)
+                st.success(f"Proveedor '{nuevo_proveedor_txt.strip()}' agregado.")
             st.success("Entrada registrada correctamente.")
             go_to("entradas")
 
@@ -507,7 +635,8 @@ if st.session_state["pagina"] == "salidas":
                 if cantidad > current_qty:
                     st.warning(f"⚠️ Stock insuficiente. Stock actual: {current_qty}")
                 else:
-                    registrar_movimiento("salida", codigo, "", int(cantidad), usuario_actual=st.session_state.get("usuario"))
+                    proveedor_actual = df_check.loc[df_check["codigo"].astype(str) == str(codigo).strip(), "proveedor"].iloc[0] if "proveedor" in df_check.columns else ""
+                    registrar_movimiento("salida", codigo, "", int(cantidad), usuario_actual=st.session_state.get("usuario"), proveedor=proveedor_actual)
                     if boleta_file:
                         boleta_path = os.path.join(BOLETAS_DIR, boleta_file.name)
                         with open(boleta_path, "wb") as f:
@@ -520,20 +649,92 @@ if st.session_state["pagina"] == "salidas":
         go_to("menu")
 
 # ==============================
-# OCR PAGE (opcional, mantenido separado) - no aparece en menú principal
-# (si deseas mantenerlo, la página queda accesible si setéas st.session_state['pagina']='ocr')
+# PROVEEDORES (solo admin)
+# ==============================
+if st.session_state["pagina"] == "proveedores":
+    if st.session_state["rol"] != "admin":
+        st.error("No tienes permiso para acceder a esta sección.")
+        st.stop()
+
+    st.title("📇 Gestión de Proveedores")
+    prov_df = cargar_proveedores()
+    st.subheader("Listado de proveedores")
+    st.dataframe(prov_df, use_container_width=True)
+
+    st.divider()
+    st.subheader("Agregar nuevo proveedor")
+    p_nombre = st.text_input("Nombre proveedor", key="prov_nombre")
+    p_contacto = st.text_input("Contacto", key="prov_contacto")
+    p_email = st.text_input("Email", key="prov_email")
+    p_telefono = st.text_input("Teléfono", key="prov_telefono")
+    p_direccion = st.text_input("Dirección", key="prov_direccion")
+    p_notas = st.text_area("Notas", key="prov_notas")
+
+    if st.button("➕ Agregar proveedor"):
+        if not p_nombre.strip():
+            st.warning("El nombre del proveedor es obligatorio.")
+        else:
+            prov_df = cargar_proveedores()
+            new_id = 1 if prov_df.empty else (prov_df["id"].max() + 1 if "id" in prov_df.columns and pd.api.types.is_numeric_dtype(prov_df["id"]) else len(prov_df) + 1)
+            prov_df = prov_df.append({
+                "id": new_id,
+                "nombre": p_nombre.strip(),
+                "contacto": p_contacto.strip(),
+                "email": p_email.strip(),
+                "telefono": p_telefono.strip(),
+                "direccion": p_direccion.strip(),
+                "notas": p_notas.strip()
+            }, ignore_index=True)
+            guardar_proveedores(prov_df)
+            st.success("Proveedor agregado correctamente.")
+            go_to("proveedores")
+
+    st.divider()
+    st.subheader("Modificar / Eliminar proveedor")
+    if not prov_df.empty:
+        sel = st.selectbox("Seleccionar proveedor", prov_df["nombre"].astype(str).tolist())
+        if sel:
+            prov_row = prov_df[prov_df["nombre"].astype(str) == sel].iloc[0]
+            edit_contacto = st.text_input("Contacto", value=prov_row.get("contacto", ""), key="edit_contacto")
+            edit_email = st.text_input("Email", value=prov_row.get("email", ""), key="edit_email")
+            edit_telefono = st.text_input("Teléfono", value=prov_row.get("telefono", ""), key="edit_telefono")
+            edit_direccion = st.text_input("Direccion", value=prov_row.get("direccion", ""), key="edit_direccion")
+            edit_notas = st.text_area("Notas", value=prov_row.get("notas", ""), key="edit_notas")
+            if st.button("💾 Guardar cambios proveedor"):
+                prov_df.loc[prov_df["nombre"].astype(str) == sel, "contacto"] = edit_contacto
+                prov_df.loc[prov_df["nombre"].astype(str) == sel, "email"] = edit_email
+                prov_df.loc[prov_df["nombre"].astype(str) == sel, "telefono"] = edit_telefono
+                prov_df.loc[prov_df["nombre"].astype(str) == sel, "direccion"] = edit_direccion
+                prov_df.loc[prov_df["nombre"].astype(str) == sel, "notas"] = edit_notas
+                guardar_proveedores(prov_df)
+                st.success("Proveedor modificado.")
+                go_to("proveedores")
+            if st.button("🗑️ Eliminar proveedor"):
+                prov_df = prov_df[prov_df["nombre"].astype(str) != sel]
+                guardar_proveedores(prov_df)
+                st.success("Proveedor eliminado.")
+                go_to("proveedores")
+    else:
+        st.info("No hay proveedores definidos todavía.")
+
+    st.markdown("---")
+    if st.button("⬅️ Volver al menú principal"):
+        go_to("menu")
+
+# ==============================
+# OCR PAGE (opcional)
 # ==============================
 if st.session_state["pagina"] == "ocr":
     st.title("🖼️ OCR - Extraer texto de una imagen (opcional)")
     st.write("Esta página es opcional. Si quieres que el OCR esté integrado en el flujo principal, dime y lo integro.")
-    st.markdown("Nota: el OCR real necesita modelos/paquetes externos (ej. pytesseract o modelos transformers).")
+    st.markdown("Nota: el OCR real necesita paquetes externos (pytesseract/paddleocr o modelos transformers).")
 
     uploaded_image = st.file_uploader("Sube una imagen (jpg/png) para extraer texto", type=["png", "jpg", "jpeg"])
     if uploaded_image:
         try:
             pil_img = Image.open(uploaded_image).convert("RGB")
             st.image(pil_img, caption="Imagen subida", use_column_width=True)
-            st.success("Imagen cargada. Implementa tu motor OCR (pytesseract / LightOnOCR) para extraer texto.")
+            st.success("Imagen cargada. Implementa tu motor OCR (pytesseract / PaddleOCR / LightOnOCR) para extraer texto.")
         except Exception as e:
             st.error(f"No se pudo abrir la imagen: {e}")
 
@@ -548,13 +749,12 @@ if st.session_state["pagina"] == "historial":
     if os.path.exists(HISTORIAL_FILE):
         df_hist = pd.read_csv(HISTORIAL_FILE)
         st.dataframe(df_hist, use_container_width=True)
-        # Filtros simples
         st.markdown("#### Filtros rápidos")
         cols = st.columns(3)
         with cols[0]:
             filtro_usuario = st.text_input("Usuario (exacto)", "")
         with cols[1]:
-            filtro_tipo = st.selectbox("Tipo", ["todos", "entrada", "salida"])
+            filtro_tipo = st.selectbox("Tipo", ["todos", "nuevo", "entrada", "salida"])
         with cols[2]:
             filtro_codigo = st.text_input("Código (exacto)", "")
 
@@ -575,36 +775,42 @@ if st.session_state["pagina"] == "historial":
         go_to("menu")
 
 # ==============================
-# COPIA DE SEGURIDAD (Disponible en su propia página, no en menú principal)
+# BACKUP (página separada)
 # ==============================
 if st.session_state["pagina"] == "backup":
     st.title("📦 Copia de Seguridad del Inventario")
     df = cargar_datos()
+    prov_df = cargar_proveedores()
 
     fecha = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     backup_name = f"backup_inventario_{fecha}.xlsx"
     buffer = BytesIO()
-    df.to_excel(buffer, index=False)
-    buffer.seek(0)
-    backup_path = os.path.join(BACKUPS_DIR, backup_name)
-    with open(backup_path, "wb") as f:
-        f.write(buffer.getvalue())
+    # guardar ambas hojas al buffer
+    try:
+        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+            df.to_excel(writer, sheet_name="productos", index=False)
+            prov_df.to_excel(writer, sheet_name="proveedores", index=False)
+        buffer.seek(0)
+        backup_path = os.path.join(BACKUPS_DIR, backup_name)
+        with open(backup_path, "wb") as f:
+            f.write(buffer.getvalue())
+        st.success(f"Copia de seguridad creada: {backup_name}")
+        st.download_button(
+            "📥 Descargar copia de seguridad",
+            data=buffer.getvalue(),
+            file_name=backup_name,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except Exception as e:
+        st.error(f"Error creando copia de seguridad: {e}")
 
-    st.success(f"Copia de seguridad creada: {backup_name}")
-    st.download_button(
-        "📥 Descargar copia de seguridad",
-        data=buffer.getvalue(),
-        file_name=backup_name,
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-    st.markdown("_Nota: este botón está oculto del menú principal. La copia crea un archivo Excel con el inventario actual en la carpeta `backups`._")
+    st.markdown("_Nota: este botón está oculto del menú principal. La copia crea un archivo Excel con las hojas `productos` y `proveedores` en la carpeta `backups`._")
 
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
 
 # ==============================
-# CONFIGURACIÓN (Solo Admin/Jefe) + GESTIÓN DE USUARIOS integrada
+# CONFIGURACIÓN (Solo Admin)
 # ==============================
 if st.session_state["pagina"] == "configuracion":
     if st.session_state["rol"] not in ["admin"]:
@@ -613,27 +819,32 @@ if st.session_state["pagina"] == "configuracion":
 
     st.title("⚙️ Configuración del Sistema")
     st.write("Desde aquí puedes descargar el inventario completo o gestionar datos del sistema.")
-
     df = cargar_datos()
+    prov_df = cargar_proveedores()
 
     # Descargar inventario (admin)
     buffer = BytesIO()
-    df.to_excel(buffer, index=False)
-    buffer.seek(0)
-    st.download_button(
-        "📥 Descargar Inventario (Excel)",
-        buffer.getvalue(),
-        "inventario.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    try:
+        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+            df.to_excel(writer, sheet_name="productos", index=False)
+            prov_df.to_excel(writer, sheet_name="proveedores", index=False)
+        buffer.seek(0)
+        st.download_button(
+            "📥 Descargar Inventario (Excel)",
+            buffer.getvalue(),
+            "inventario.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except Exception as e:
+        st.error(f"No se pudo preparar el archivo de descarga: {e}")
 
     st.divider()
     st.subheader("🧨 Opciones avanzadas")
-
     if st.button("🗑️ Reiniciar inventario (vaciar todo)"):
-        df_vacio = pd.DataFrame(columns=["codigo", "nombre", "descripcion", "categoria", "cantidad", "precio_costo", "precio_venta", "fecha_ingreso"])
-        guardar_datos(df_vacio)
-        st.success("Inventario reiniciado correctamente.")
+        df_vacio = pd.DataFrame(columns=["codigo", "nombre", "descripcion", "categoria", "cantidad", "precio_costo", "precio_venta", "fecha_ingreso", "proveedor"])
+        prov_vacio = pd.DataFrame(columns=["id", "nombre", "contacto", "email", "telefono", "direccion", "notas"])
+        guardar_all(df_vacio, prov_vacio)
+        st.success("Inventario y proveedores reiniciados correctamente.")
         st.rerun()
 
     # Exportar historial completo (solo admin)
@@ -645,12 +856,8 @@ if st.session_state["pagina"] == "configuracion":
         st.info("No hay historial para descargar todavía.")
 
     st.markdown("---")
-    # ----------------------------
-    # Gestión de usuarios integrada
-    # ----------------------------
     st.subheader("👥 Gestión de Usuarios")
     usuarios = cargar_usuarios()
-
     st.markdown("**Usuarios actuales**")
     usuarios_data = [{"Usuario": u, "Rol": info["rol"]} for u, info in usuarios.items()]
     if usuarios_data:
