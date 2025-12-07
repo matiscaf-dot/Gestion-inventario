@@ -26,10 +26,20 @@ os.makedirs(BACKUPS_DIR, exist_ok=True)
 os.makedirs(CAPTURAS_DIR, exist_ok=True)
 
 # ==============================
+# Intento de import para lector de códigos de barras (pyzbar)
+# ==============================
+_HAS_PYZBAR = False
+try:
+    from pyzbar.pyzbar import decode as zbar_decode
+    _HAS_PYZBAR = True
+except Exception:
+    _HAS_PYZBAR = False
+
+# ==============================
 # FUNCIONES AUXILIARES
 # ==============================
 def asegurar_usuarios_iniciales():
-    """Si no existe usuarios.json, crea uno con usuarios por defecto."""
+    """Si no existe usuarios.json, crea uno con usuarios por defecto (opción B: diccionario hardcode)."""
     if not os.path.exists(USUARIOS_FILE):
         usuarios_default = {
             "admin": {"clave": "1234", "rol": "admin"},
@@ -57,18 +67,39 @@ def cargar_datos():
         # Normalizar columnas
         df.columns = df.columns.str.lower().str.replace(" ", "_")
     else:
-        df = pd.DataFrame(columns=["codigo", "nombre", "categoria", "cantidad", "fecha_ingreso"])
+        df = pd.DataFrame(columns=[
+            "codigo", "nombre", "descripcion", "categoria",
+            "cantidad", "precio_costo", "precio_venta", "fecha_ingreso"
+        ])
         df.to_excel(DATA_FILE, index=False)
     # Asegurar columnas necesarias
-    for col in ["codigo", "nombre", "categoria", "cantidad", "fecha_ingreso"]:
+    expected_cols = ["codigo", "nombre", "descripcion", "categoria", "cantidad", "precio_costo", "precio_venta", "fecha_ingreso"]
+    for col in expected_cols:
         if col not in df.columns:
-            df[col] = "" if col != "cantidad" else 0
+            if col in ["cantidad"]:
+                df[col] = 0
+            elif col in ["precio_costo", "precio_venta"]:
+                df[col] = 0.0
+            else:
+                df[col] = ""
     # Forzar tipos
     try:
         df["cantidad"] = pd.to_numeric(df["cantidad"], errors="coerce").fillna(0).astype(int)
     except Exception:
         df["cantidad"] = df["cantidad"].apply(lambda x: int(x) if pd.notna(x) and str(x).isdigit() else 0)
+    for pcol in ["precio_costo", "precio_venta"]:
+        try:
+            df[pcol] = pd.to_numeric(df[pcol], errors="coerce").fillna(0.0).astype(float)
+        except Exception:
+            df[pcol] = df[pcol].apply(lambda x: float(x) if pd.notna(x) and is_number(str(x)) else 0.0)
     return df
+
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except:
+        return False
 
 def guardar_datos(df):
     # Normalizar columnas antes de guardar (sin espacios, en minúsculas)
@@ -93,11 +124,10 @@ def registrar_historial(usuario, tipo, codigo, nombre, cantidad):
         historial = entrada
     historial.to_csv(HISTORIAL_FILE, index=False)
 
-def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None):
+def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None, precio_costo=None, precio_venta=None, descripcion=None, categoria=None):
     """
     tipo: "entrada" o "salida"
     cantidad: int (si es salida, debe ser positiva; la función restará)
-    usuario_actual: nombre de usuario que realiza la acción (string)
     """
     df = cargar_datos()
     df["codigo"] = df["codigo"].astype(str)
@@ -106,12 +136,24 @@ def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None):
     if tipo == "entrada":
         if codigo in df["codigo"].values:
             df.loc[df["codigo"] == codigo, "cantidad"] = df.loc[df["codigo"] == codigo, "cantidad"].astype(int) + int(cantidad)
+            # si se entregan precios/desc, actualizarlos si vienen
+            if precio_costo is not None:
+                df.loc[df["codigo"] == codigo, "precio_costo"] = float(precio_costo)
+            if precio_venta is not None:
+                df.loc[df["codigo"] == codigo, "precio_venta"] = float(precio_venta)
+            if descripcion is not None:
+                df.loc[df["codigo"] == codigo, "descripcion"] = descripcion
+            if categoria is not None:
+                df.loc[df["codigo"] == codigo, "categoria"] = categoria
         else:
             nueva_fila = pd.DataFrame({
                 "codigo": [codigo],
                 "nombre": [nombre if nombre else "Sin nombre"],
-                "categoria": ["general"],
+                "descripcion": [descripcion if descripcion else ""],
+                "categoria": [categoria if categoria else "general"],
                 "cantidad": [int(cantidad)],
+                "precio_costo": [float(precio_costo) if precio_costo is not None else 0.0],
+                "precio_venta": [float(precio_venta) if precio_venta is not None else 0.0],
                 "fecha_ingreso": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
             })
             df = pd.concat([df, nueva_fila], ignore_index=True)
@@ -121,100 +163,34 @@ def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None):
     elif tipo == "salida":
         if codigo in df["codigo"].values:
             idx = df.index[df["codigo"] == codigo]
-            # Asegurar cantidad numérica
             df.loc[idx, "cantidad"] = df.loc[idx, "cantidad"].astype(int) - int(cantidad)
-            # Si queda en 0 o negativo, eliminar el registro
             if df.loc[idx, "cantidad"].iloc[0] <= 0:
                 df = df[df["codigo"] != codigo]
             guardar_datos(df)
             registrar_historial(usuario_actual or "desconocido", "salida", codigo, nombre, int(cantidad))
         else:
-            # Producto no existe
             st.error("❌ El producto no existe en inventario.")
             return
 
 # ==============================
-# OCR: integración opcional (LightOnOCR + pytesseract fallback)
+# Lector de código de barras desde PIL.Image usando pyzbar (si está disponible)
 # ==============================
-# Estas funciones son opcionales: LightOnOCR requiere transformers desde fork y torch;
-# pytesseract requiere instalación de pytesseract y Tesseract en el sistema.
-def _load_lightonocr():
+def decode_barcode_from_pil(pil_img):
     """
-    Intentar cargar el processor y el modelo LightOnOCR y guardarlos en session_state.
-    Devuelve True si se cargó correctamente.
+    Devuelve el primer código encontrado como string o '' si no encuentra.
+    Usa pyzbar si está instalado.
     """
-    if st.session_state.get("_lightonocr_loaded"):
-        return True
+    if not _HAS_PYZBAR:
+        return ""
     try:
-        import torch
-        from transformers import AutoProcessor, LightOnOCRForConditionalGeneration
-    except Exception as e:
-        st.session_state["_lightonocr_error"] = str(e)
-        return False
-
-    model_id = "lightonai/LightOnOCR-1B-1025"
-    device = "cuda" if (torch.cuda.is_available()) else "cpu"
-    try:
-        dtype = getattr(torch, "bfloat16") if device == "cuda" else torch.float32
-        with st.spinner("Cargando modelo LightOnOCR (esto puede tardar)..."):
-            processor = AutoProcessor.from_pretrained(model_id)
-            model = LightOnOCRForConditionalGeneration.from_pretrained(
-                model_id,
-                dtype=dtype,
-                device_map=device,
-                attn_implementation="sdpa"
-            )
-            model.eval()
-        st.session_state["_lightonocr_processor"] = processor
-        st.session_state["_lightonocr_model"] = model
-        st.session_state["_lightonocr_loaded"] = True
-        return True
-    except Exception as e:
-        st.session_state["_lightonocr_error"] = str(e)
-        return False
-
-def run_lightonocr_on_image(pil_image):
-    """Ejecuta inference con LightOnOCR usando los objetos cargados en session_state."""
-    try:
-        import torch
-        processor = st.session_state.get("_lightonocr_processor")
-        model = st.session_state.get("_lightonocr_model")
-        if processor is None or model is None:
-            return None
-
-        messages = [{"role": "user", "content": [{"type": "image"}]}]
-        text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-
-        inputs = processor(text=[text], images=[pil_image], return_tensors="pt")
-        device = next(model.parameters()).device if hasattr(model, "parameters") else "cpu"
-        inputs = {k: v.to(device) if hasattr(v, "to") else v for k, v in inputs.items()}
-
-        if "pixel_values" in inputs:
-            try:
-                target_dtype = next(model.parameters()).dtype
-                inputs["pixel_values"] = inputs["pixel_values"].to(target_dtype)
-            except Exception:
-                pass
-
-        outputs = model.generate(**inputs, max_new_tokens=1024)
-        input_length = inputs['input_ids'].shape[1]
-        generated_text = processor.tokenizer.decode(outputs[0, input_length:], skip_special_tokens=True)
-        return generated_text
-    except Exception as e:
-        st.session_state["_lightonocr_error"] = str(e)
-        return None
-
-def run_pytesseract_on_image(pil_image):
-    """Fallback simple OCR usando pytesseract si está instalado."""
-    try:
-        import pytesseract
+        decoded = zbar_decode(pil_img)
+        if not decoded:
+            return ""
+        # Retornar data del primer barcode
+        data = decoded[0].data.decode("utf-8")
+        return data
     except Exception:
-        return None
-    try:
-        text = pytesseract.image_to_string(pil_image)
-        return text
-    except Exception:
-        return None
+        return ""
 
 # ==============================
 # Helpers para navegación (evitan problemas de doble clic)
@@ -236,7 +212,7 @@ if "usuario" not in st.session_state:
     st.session_state["usuario"] = None
 
 # ==============================
-# LOGIN SIMPLE (con usuarios.json)
+# LOGIN SIMPLE (con usuarios.json - opción B)
 # ==============================
 usuarios = cargar_usuarios()
 
@@ -292,7 +268,6 @@ if st.session_state["pagina"] == "menu":
         # Gestión y configuración solo admin
         if rol == "admin":
             st.button("⚙️ Configuración", use_container_width=True, on_click=go_to, args=("configuracion",))
-            # la gestión de usuarios ahora está dentro de 'configuracion' (no aquí)
 
     st.markdown("---")
     if st.button("🚪 Cerrar sesión", use_container_width=True):
@@ -304,7 +279,7 @@ if st.session_state["pagina"] == "menu":
         st.rerun()
 
 # ==============================
-# DASHBOARD (ahora renombrado a "Tabla Inventario")
+# DASHBOARD (Tabla Inventario)
 # ==============================
 if st.session_state["pagina"] == "dashboard":
     st.title("📦 Tabla Inventario")
@@ -320,11 +295,10 @@ if st.session_state["pagina"] == "dashboard":
     st.dataframe(df, use_container_width=True)
 
     if st.button("⬅️ Volver al menú principal"):
-        st.session_state["pagina"] = "menu"
-        st.rerun()
+        go_to("menu")
 
 # ==============================
-# PRODUCTOS
+# PRODUCTOS (agregar/editar) - incluye opción cámara para capturar código
 # ==============================
 if st.session_state["pagina"] == "productos":
     if st.session_state["rol"] not in ["admin", "bodeguero"]:
@@ -338,43 +312,90 @@ if st.session_state["pagina"] == "productos":
     st.dataframe(df, use_container_width=True)
 
     st.divider()
-    st.subheader("Agregar o editar producto")
+    st.subheader("Agregar o editar producto (nuevo)")
 
-    codigo = st.text_input("Código del producto")
+    # Opción cámara para capturar el código de barra
+    st.markdown("**Capturar código con la cámara (recomendado para códigos físicos)**")
+    cam_img = st.camera_input("Toma una foto del código o producto (si tu navegador lo permite)")
+
+    detected_code = ""
+    if cam_img:
+        # Guardar imagen temporal
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        cam_path = os.path.join(CAPTURAS_DIR, f"producto_{timestamp}.jpg")
+        with open(cam_path, "wb") as f:
+            f.write(cam_img.getbuffer())
+        st.success("Imagen capturada correctamente.")
+        # Intentar decodificar código de barras si pyzbar está presente
+        try:
+            pil_img = Image.open(cam_path).convert("RGB")
+            detected_code = decode_barcode_from_pil(pil_img)
+            if detected_code:
+                st.info(f"Código detectado: {detected_code}")
+            else:
+                if not _HAS_PYZBAR:
+                    st.warning("No se pudo decodificar: pyzbar no está instalado. Para habilitar lector de códigos, instala pyzbar y zbar (ver instrucciones abajo).")
+                else:
+                    st.info("No se detectó código en la imagen (intenta acercar la cámara o enfocar el código).")
+        except Exception as e:
+            st.error(f"No se pudo procesar la imagen: {e}")
+
+    st.markdown("**O ingresa manualmente los datos:**")
+    codigo = st.text_input("Código del producto", value=detected_code)
     nombre = st.text_input("Nombre del producto")
-    categoria = st.text_input("Categoría", "General")
-    cantidad = st.number_input("Cantidad inicial", min_value=0, step=1)
+    descripcion = st.text_area("Descripción (opcional)")
+    categoria = st.text_input("Categoría", value="General")
+    cantidad = st.number_input("Cantidad inicial", min_value=0, step=1, value=0)
+    precio_costo = st.number_input("Precio costo", min_value=0.0, step=0.1, format="%.2f", value=0.0)
+    precio_venta = st.number_input("Precio venta", min_value=0.0, step=0.1, format="%.2f", value=0.0)
 
     if st.button("💾 Guardar producto"):
         if codigo and nombre:
+            df = cargar_datos()
             codigo = str(codigo).strip()
-            # Si existe, editar; si no, agregar
             if codigo in df["codigo"].astype(str).values:
+                # editar
                 df.loc[df["codigo"].astype(str) == codigo, "nombre"] = nombre
+                df.loc[df["codigo"].astype(str) == codigo, "descripcion"] = descripcion
                 df.loc[df["codigo"].astype(str) == codigo, "categoria"] = categoria
                 df.loc[df["codigo"].astype(str) == codigo, "cantidad"] = int(cantidad)
+                df.loc[df["codigo"].astype(str) == codigo, "precio_costo"] = float(precio_costo)
+                df.loc[df["codigo"].astype(str) == codigo, "precio_venta"] = float(precio_venta)
+                st.success("✅ Producto actualizado correctamente.")
             else:
                 nueva_fila = pd.DataFrame({
                     "codigo": [codigo],
                     "nombre": [nombre],
+                    "descripcion": [descripcion],
                     "categoria": [categoria],
                     "cantidad": [int(cantidad)],
+                    "precio_costo": [float(precio_costo)],
+                    "precio_venta": [float(precio_venta)],
                     "fecha_ingreso": [datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
                 })
                 df = pd.concat([df, nueva_fila], ignore_index=True)
+                st.success("✅ Producto agregado correctamente.")
             guardar_datos(df)
-            st.success("✅ Producto guardado correctamente.")
-            st.rerun()
+            go_to("productos")  # recargar la página productos
         else:
-            st.warning("Completa todos los campos antes de guardar.")
+            st.warning("Completa al menos Código y Nombre antes de guardar.")
 
     st.markdown("---")
     if st.button("⬅️ Volver al menú principal"):
-        st.session_state["pagina"] = "menu"
-        st.rerun()
+        go_to("menu")
+
+    # Instrucciones para instalar pyzbar si no está
+    if not _HAS_PYZBAR:
+        st.info("Para habilitar lectura automática de códigos necesitas instalar `pyzbar` y el binario `zbar` en tu sistema.")
+        st.markdown("""
+**Instalación sugerida (ejemplos):**
+- Linux (Debian/Ubuntu): `sudo apt-get install -y libzbar0 && pip install pyzbar`
+- Mac (Homebrew): `brew install zbar && pip install pyzbar`
+- Windows: instalar ZBar (busca instalador) y luego `pip install pyzbar`
+""")
 
 # ==============================
-# ENTRADAS (con cámara)
+# ENTRADAS (con cámara + lector de código)
 # ==============================
 if st.session_state["pagina"] == "entradas":
     if st.session_state["rol"] not in ["admin", "bodeguero"]:
@@ -383,84 +404,57 @@ if st.session_state["pagina"] == "entradas":
 
     st.title("📦 Registrar Entrada de Inventario")
 
-    # Si venimos desde OCR, precargar valores (si existen)
-    preload_codigo = st.session_state.get("ocr_codigo", "")
-    preload_nombre = st.session_state.get("ocr_nombre", "")
-
-    # Código manual / futuro lector
-    st.subheader("Código de producto")
-    col1, col2 = st.columns([1, 2])
-    with col1:
-        if st.button("📷 Código de barra (pendiente)"):
-            st.info("Lectura de código de barras/QR pendiente de implementación.")
-    with col2:
-        codigo = st.text_input("O ingrese el código manualmente (nuevo o existente):", value=preload_codigo)
-
-    # Subir factura opcional
-    st.subheader("📄 Subir factura (PDF o imagen) - opcional")
-    factura_file = st.file_uploader("Selecciona la factura relacionada", type=["pdf", "png", "jpg", "jpeg"])
-
-    factura_path = None
-    if factura_file:
-        factura_path = os.path.join(FACTURAS_DIR, factura_file.name)
-        with open(factura_path, "wb") as f:
-            f.write(factura_file.getbuffer())
-        st.success(f"Factura guardada correctamente: {factura_file.name}")
-        st.info("Procesamiento automático de factura aún no implementado.")
-
-    st.markdown("---")
-    # Captura por cámara (opcional)
-    st.subheader("📸 Capturar imagen con cámara (opcional)")
+    # Captura por cámara (opcional) para obtener código
+    st.subheader("Capturar imagen con la cámara (opcional) para leer código de barras)")
     camera_image = st.camera_input("Toma una foto del producto o código")
 
-    camera_path = None
+    pre_codigo = ""
     if camera_image:
-        camera_path = os.path.join(CAPTURAS_DIR, f"entrada_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        camera_path = os.path.join(CAPTURAS_DIR, f"entrada_{timestamp}.jpg")
         with open(camera_path, "wb") as f:
             f.write(camera_image.getbuffer())
-        st.success("Imagen capturada desde la cámara correctamente.")
+        st.success("Imagen guardada.")
+        try:
+            pil_img = Image.open(camera_path).convert("RGB")
+            detected = decode_barcode_from_pil(pil_img)
+            if detected:
+                st.info(f"Código detectado: {detected}")
+                pre_codigo = detected
+            else:
+                if not _HAS_PYZBAR:
+                    st.warning("pyzbar no está instalado: no se pudo decodificar automáticamente.")
+                else:
+                    st.info("No se detectó código en la imagen.")
+        except Exception as e:
+            st.error(f"No se pudo procesar la imagen: {e}")
 
     st.markdown("---")
-    nombre = st.text_input("Nombre del producto", value=preload_nombre)
-    cantidad = st.number_input("Cantidad a ingresar", min_value=1, step=1)
+    codigo = st.text_input("Código del producto", value=pre_codigo)
+    nombre = st.text_input("Nombre del producto (opcional)")
+    cantidad = st.number_input("Cantidad a ingresar", min_value=1, step=1, value=1)
+    precio_costo = st.number_input("Precio costo (opcional)", min_value=0.0, step=0.1, format="%.2f", value=0.0)
+    precio_venta = st.number_input("Precio venta (opcional)", min_value=0.0, step=0.1, format="%.2f", value=0.0)
+
+    factura_file = st.file_uploader("Subir factura (opcional)", type=["pdf", "png", "jpg", "jpeg"])
 
     if st.button("✅ Registrar entrada"):
-        # Si la cámara capturó imagen, opcionalmente intentar OCR (si implementado)
-        if camera_image:
-            # Intentar usar LightOnOCR si está cargado; si no, no falla (se usa registro manual)
-            texto_ocr = None
-            ok = _load_lightonocr()
-            if ok:
-                try:
-                    pil_img = Image.open(camera_path).convert("RGB")
-                    texto_ocr = run_lightonocr_on_image(pil_img)
-                except Exception:
-                    texto_ocr = None
-            else:
-                # intentar pytesseract
-                try:
-                    pil_img = Image.open(camera_path).convert("RGB")
-                    texto_ocr = run_pytesseract_on_image(pil_img)
-                except Exception:
-                    texto_ocr = None
-            # si se obtuvo texto, opcional: mostrar al usuario (no obligatorio)
-            if texto_ocr:
-                st.info("Se detectó texto desde la imagen (posible referencia). Revisa en historial o en el campo Nombre/Código.")
-                st.text_area("Texto detectado (imagen)", value=texto_ocr, height=150)
-
-        registrar_movimiento("entrada", codigo, nombre, int(cantidad), usuario_actual=st.session_state.get("usuario"))
-        # Guardar referencia a la factura si se subió una
-        if factura_path:
-            st.session_state["factura_subida"] = factura_path
-        # limpiar valores de prefill OCR
-        st.session_state.pop("ocr_codigo", None)
-        st.session_state.pop("ocr_nombre", None)
-        st.success(f"Entrada registrada correctamente. Producto: {nombre} (+{cantidad})")
-        st.rerun()
+        if not codigo:
+            st.warning("Ingresa o captura un código antes de registrar.")
+        else:
+            registrar_movimiento("entrada", codigo, nombre, int(cantidad), usuario_actual=st.session_state.get("usuario"),
+                                precio_costo=precio_costo if precio_costo > 0 else None,
+                                precio_venta=precio_venta if precio_venta > 0 else None)
+            if factura_file:
+                factura_path = os.path.join(FACTURAS_DIR, factura_file.name)
+                with open(factura_path, "wb") as f:
+                    f.write(factura_file.getbuffer())
+                st.session_state["factura_subida"] = factura_path
+            st.success("Entrada registrada correctamente.")
+            go_to("entradas")
 
     if st.button("⬅️ Volver al menú principal"):
-        st.session_state["pagina"] = "menu"
-        st.rerun()
+        go_to("menu")
 
 # ==============================
 # SALIDAS (con cámara)
@@ -472,170 +466,79 @@ if st.session_state["pagina"] == "salidas":
 
     st.title("📤 Registrar Salida de Inventario")
 
-    # Subir boleta opcional
-    st.subheader("📄 Subir boleta (PDF o imagen) - opcional")
-    boleta_file = st.file_uploader("Selecciona la boleta asociada", type=["pdf", "png", "jpg", "jpeg"])
+    st.markdown("Puedes tomar una foto para intentar detectar el código, o ingresar el código manualmente.")
+    camera_image = st.camera_input("Toma una foto del producto o código (opcional)")
 
-    boleta_path = None
-    if boleta_file:
-        boleta_path = os.path.join(BOLETAS_DIR, boleta_file.name)
-        with open(boleta_path, "wb") as f:
-            f.write(boleta_file.getbuffer())
-        st.success(f"Boleta guardada correctamente: {boleta_file.name}")
-        st.info("Procesamiento automático de boleta aún no implementado.")
-
-    st.markdown("---")
-    # Captura por cámara (opcional)
-    st.subheader("📸 Capturar imagen con cámara (opcional)")
-    camera_image = st.camera_input("Toma una foto del producto o código")
-
-    camera_path = None
+    pre_codigo = ""
     if camera_image:
-        camera_path = os.path.join(CAPTURAS_DIR, f"salida_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        camera_path = os.path.join(CAPTURAS_DIR, f"salida_{timestamp}.jpg")
         with open(camera_path, "wb") as f:
             f.write(camera_image.getbuffer())
-        st.success("Imagen capturada desde la cámara correctamente.")
+        st.success("Imagen guardada.")
+        try:
+            pil_img = Image.open(camera_path).convert("RGB")
+            detected = decode_barcode_from_pil(pil_img)
+            if detected:
+                st.info(f"Código detectado: {detected}")
+                pre_codigo = detected
+            else:
+                if not _HAS_PYZBAR:
+                    st.warning("pyzbar no está instalado: no se pudo decodificar automáticamente.")
+                else:
+                    st.info("No se detectó código en la imagen.")
+        except Exception as e:
+            st.error(f"No se pudo procesar la imagen: {e}")
 
     st.markdown("---")
-    codigo = st.text_input("Código del producto")
-    cantidad = st.number_input("Cantidad a descontar", min_value=1, step=1)
+    codigo = st.text_input("Código del producto", value=pre_codigo)
+    cantidad = st.number_input("Cantidad a descontar", min_value=1, step=1, value=1)
+    boleta_file = st.file_uploader("Subir boleta (opcional)", type=["pdf", "png", "jpg", "jpeg"])
 
     if st.button("✅ Registrar salida"):
-        # Si cámara capturó imagen, intentar OCR (no obligatorio)
-        if camera_image:
-            texto_ocr = None
-            ok = _load_lightonocr()
-            if ok:
-                try:
-                    pil_img = Image.open(camera_path).convert("RGB")
-                    texto_ocr = run_lightonocr_on_image(pil_img)
-                except Exception:
-                    texto_ocr = None
-            else:
-                try:
-                    pil_img = Image.open(camera_path).convert("RGB")
-                    texto_ocr = run_pytesseract_on_image(pil_img)
-                except Exception:
-                    texto_ocr = None
-            if texto_ocr:
-                st.info("Se detectó texto desde la imagen (posible referencia). Revisa el resultado antes de confirmar si es necesario.")
-                st.text_area("Texto detectado (imagen)", value=texto_ocr, height=150)
-
-        # Antes de restar, verificar existencia y stock suficiente
-        df_check = cargar_datos()
-        if str(codigo).strip() not in df_check["codigo"].astype(str).values:
-            st.error("❌ El producto no existe en inventario.")
+        if not codigo:
+            st.warning("Ingresa o captura un código antes de registrar.")
         else:
-            current_qty = int(df_check.loc[df_check["codigo"].astype(str) == str(codigo).strip(), "cantidad"].iloc[0])
-            if cantidad > current_qty:
-                st.warning(f"⚠️ Stock insuficiente. Stock actual: {current_qty}")
+            df_check = cargar_datos()
+            if str(codigo).strip() not in df_check["codigo"].astype(str).values:
+                st.error("❌ El producto no existe en inventario.")
             else:
-                registrar_movimiento("salida", codigo, "", int(cantidad), usuario_actual=st.session_state.get("usuario"))
-                if boleta_path:
-                    st.session_state["boleta_subida"] = boleta_path
-                st.success(f"Salida registrada correctamente. Producto: {codigo} (-{cantidad})")
-                st.rerun()
+                current_qty = int(df_check.loc[df_check["codigo"].astype(str) == str(codigo).strip(), "cantidad"].iloc[0])
+                if cantidad > current_qty:
+                    st.warning(f"⚠️ Stock insuficiente. Stock actual: {current_qty}")
+                else:
+                    registrar_movimiento("salida", codigo, "", int(cantidad), usuario_actual=st.session_state.get("usuario"))
+                    if boleta_file:
+                        boleta_path = os.path.join(BOLETAS_DIR, boleta_file.name)
+                        with open(boleta_path, "wb") as f:
+                            f.write(boleta_file.getbuffer())
+                        st.session_state["boleta_subida"] = boleta_path
+                    st.success("Salida registrada correctamente.")
+                    go_to("salidas")
 
     if st.button("⬅️ Volver al menú principal"):
-        st.session_state["pagina"] = "menu"
-        st.rerun()
+        go_to("menu")
 
 # ==============================
-# OCR PAGE (opcional, muestra y precarga)
+# OCR PAGE (opcional, mantenido separado) - no aparece en menú principal
+# (si deseas mantenerlo, la página queda accesible si setéas st.session_state['pagina']='ocr')
 # ==============================
 if st.session_state["pagina"] == "ocr":
-    st.title("🖼️ OCR - Extraer texto de una imagen")
-    st.write("Puedes usar el modelo LightOnOCR (si está instalado) o el fallback con pytesseract (si está instalado).")
-    st.markdown(
-        "### Notas:\n"
-        "- Para usar LightOnOCR necesitas instalar una versión específica de `transformers` y tener `torch`.\n"
-        "- Comando recomendado para transformers (ejemplo en Colab):\n"
-        "```\n"
-        "!pip install -q -U git+https://github.com/baptiste-aubertin/transformers.git@main\n"
-        "```\n"
-        "- Si no puedes usar LightOnOCR, instala `pytesseract` y el binario Tesseract en tu sistema para el fallback."
-    )
+    st.title("🖼️ OCR - Extraer texto de una imagen (opcional)")
+    st.write("Esta página es opcional. Si quieres que el OCR esté integrado en el flujo principal, dime y lo integro.")
+    st.markdown("Nota: el OCR real necesita modelos/paquetes externos (ej. pytesseract o modelos transformers).")
 
     uploaded_image = st.file_uploader("Sube una imagen (jpg/png) para extraer texto", type=["png", "jpg", "jpeg"])
-    engine = st.selectbox("Motor OCR", ["Intentar LightOnOCR (recomendado si instalado)", "pytesseract (fallback)"])
-
     if uploaded_image:
         try:
             pil_img = Image.open(uploaded_image).convert("RGB")
             st.image(pil_img, caption="Imagen subida", use_column_width=True)
+            st.success("Imagen cargada. Implementa tu motor OCR (pytesseract / LightOnOCR) para extraer texto.")
         except Exception as e:
             st.error(f"No se pudo abrir la imagen: {e}")
-            pil_img = None
-
-        if pil_img:
-            if engine.startswith("Intentar LightOnOCR"):
-                ok = _load_lightonocr()
-                if not ok:
-                    st.warning("No se pudo cargar LightOnOCR desde transformers aquí.")
-                    err = st.session_state.get("_lightonocr_error", "")
-                    if err:
-                        st.info("Error: " + str(err))
-                    st.info("Si quieres usar LightOnOCR, instala la versión requerida de transformers y torch. Alternativamente, selecciona pytesseract.")
-                else:
-                    with st.spinner("Ejecutando LightOnOCR sobre la imagen (puede tardar)..."):
-                        texto = run_lightonocr_on_image(pil_img)
-                    if texto:
-                        st.subheader("Texto extraído (LightOnOCR)")
-                        st.text_area("Resultado OCR", value=texto, height=300)
-                        st.download_button("📥 Descargar texto (txt)", texto.encode("utf-8"), file_name="ocr_result.txt", mime="text/plain")
-                        if st.button("➕ Usar resultado para pre-cargar Entradas"):
-                            lines = [l.strip() for l in texto.splitlines() if l.strip()]
-                            guessed_codigo = ""
-                            guessed_nombre = ""
-                            if len(lines) >= 1:
-                                guessed_nombre = lines[0][:100]
-                            for ln in lines[:6]:
-                                token = ln.split()
-                                for t in token:
-                                    if any(c.isdigit() for c in t) and len(t) <= 12:
-                                        guessed_codigo = t
-                                        break
-                                if guessed_codigo:
-                                    break
-                            st.session_state["ocr_codigo"] = guessed_codigo
-                            st.session_state["ocr_nombre"] = guessed_nombre
-                            st.success("Datos precargados. Redirigiendo a Entradas...")
-                            st.session_state["pagina"] = "entradas"
-                            st.rerun()
-                    else:
-                        st.error("No se pudo extraer texto con LightOnOCR. Revisa los errores mostrados arriba.")
-            else:
-                texto = run_pytesseract_on_image(pil_img)
-                if texto is None:
-                    st.warning("pytesseract no está disponible o falló. Para usarlo instala pytesseract y el binario Tesseract en tu sistema.")
-                    st.info("En Linux/Colab: `!apt-get install -y tesseract-ocr && pip install pytesseract`")
-                else:
-                    st.subheader("Texto extraído (pytesseract)")
-                    st.text_area("Resultado OCR", value=texto, height=300)
-                    st.download_button("📥 Descargar texto (txt)", texto.encode("utf-8"), file_name="ocr_result.txt", mime="text/plain")
-                    if st.button("➕ Usar resultado para pre-cargar Entradas"):
-                        lines = [l.strip() for l in texto.splitlines() if l.strip()]
-                        guessed_codigo = ""
-                        guessed_nombre = ""
-                        if len(lines) >= 1:
-                            guessed_nombre = lines[0][:100]
-                        for ln in lines[:6]:
-                            token = ln.split()
-                            for t in token:
-                                if any(c.isdigit() for c in t) and len(t) <= 12:
-                                    guessed_codigo = t
-                                    break
-                            if guessed_codigo:
-                                break
-                        st.session_state["ocr_codigo"] = guessed_codigo
-                        st.session_state["ocr_nombre"] = guessed_nombre
-                        st.success("Datos precargados. Redirigiendo a Entradas...")
-                        st.session_state["pagina"] = "entradas"
-                        st.rerun()
 
     if st.button("⬅️ Volver al menú principal"):
-        st.session_state["pagina"] = "menu"
-        st.rerun()
+        go_to("menu")
 
 # ==============================
 # HISTORIAL (Visible para todos)
@@ -669,8 +572,7 @@ if st.session_state["pagina"] == "historial":
         st.info("No hay movimientos registrados todavía.")
 
     if st.button("⬅️ Volver al menú principal"):
-        st.session_state["pagina"] = "menu"
-        st.rerun()
+        go_to("menu")
 
 # ==============================
 # COPIA DE SEGURIDAD (Disponible en su propia página, no en menú principal)
@@ -696,9 +598,10 @@ if st.session_state["pagina"] == "backup":
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
+    st.markdown("_Nota: este botón está oculto del menú principal. La copia crea un archivo Excel con el inventario actual en la carpeta `backups`._")
+
     if st.button("⬅️ Volver al menú principal"):
-        st.session_state["pagina"] = "menu"
-        st.rerun()
+        go_to("menu")
 
 # ==============================
 # CONFIGURACIÓN (Solo Admin/Jefe) + GESTIÓN DE USUARIOS integrada
@@ -728,7 +631,7 @@ if st.session_state["pagina"] == "configuracion":
     st.subheader("🧨 Opciones avanzadas")
 
     if st.button("🗑️ Reiniciar inventario (vaciar todo)"):
-        df_vacio = pd.DataFrame(columns=["codigo", "nombre", "categoria", "cantidad", "fecha_ingreso"])
+        df_vacio = pd.DataFrame(columns=["codigo", "nombre", "descripcion", "categoria", "cantidad", "precio_costo", "precio_venta", "fecha_ingreso"])
         guardar_datos(df_vacio)
         st.success("Inventario reiniciado correctamente.")
         st.rerun()
@@ -749,7 +652,6 @@ if st.session_state["pagina"] == "configuracion":
     usuarios = cargar_usuarios()
 
     st.markdown("**Usuarios actuales**")
-    # Mostrar tabla más presentable
     usuarios_data = [{"Usuario": u, "Rol": info["rol"]} for u, info in usuarios.items()]
     if usuarios_data:
         df_usuarios_display = pd.DataFrame(usuarios_data)
@@ -805,10 +707,4 @@ if st.session_state["pagina"] == "configuracion":
 
     st.markdown("---")
     if st.button("⬅️ Volver al menú principal", key="cfg_volver"):
-        st.session_state["pagina"] = "menu"
-        st.rerun()
-
-# ==============================
-# Nota: eliminé la sección independiente 'usuarios' del menú principal
-# porque ahora la gestión está embebida en 'configuracion'.
-# ==============================
+        go_to("menu")
