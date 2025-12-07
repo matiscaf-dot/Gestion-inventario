@@ -228,6 +228,7 @@ elif opcion == "Salidas":
 elif opcion == "Facturas":
     st.title("🧾 Subir factura en PDF")
 
+    # Datos de cabecera
     numero = st.text_input("Número de factura")
     proveedor = st.text_input("Proveedor")
     fecha = st.date_input("Fecha", datetime.now().date())
@@ -236,11 +237,16 @@ elif opcion == "Facturas":
     if factura_file is not None and st.button("Registrar Factura"):
         try:
             # 1. Subir archivo a Supabase Storage
+            import re, uuid
+            # Normalizar nombre de archivo para evitar errores InvalidKey
+            safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', factura_file.name)
+            unique_filename = f"{uuid.uuid4()}_{safe_filename}"
+
             supabase.storage.from_("facturas").upload(
-                factura_file.name,
+                unique_filename,
                 factura_file.getvalue()
             )
-            url_publica = supabase.storage.from_("facturas").get_public_url(factura_file.name)
+            url_publica = supabase.storage.from_("facturas").get_public_url(unique_filename)
 
             # 2. Insertar cabecera en tabla facturas
             factura = supabase.table("facturas").insert({
@@ -255,18 +261,21 @@ elif opcion == "Facturas":
             productos = []
             with pdfplumber.open(io.BytesIO(factura_file.getvalue())) as pdf:
                 for page in pdf.pages:
-                    text = page.extract_text()
-                    if text:
-                        for line in text.split("\n"):
-                            parts = line.split()
-                            if len(parts) >= 4 and parts[2].isdigit():
-                                codigo = parts[0]
-                                nombre = parts[1]
-                                cantidad = int(parts[2])
-                                precio_costo = float(parts[3])
+                    tables = page.extract_tables()
+                    for table in tables:
+                        for row in table:
+                            # Esperamos filas tipo: [Codigo, Descripcion, Cantidad, Precio, ..., Valor]
+                            if row and len(row) >= 4:
+                                codigo = str(row[0]).strip()
+                                descripcion = str(row[1]).strip()
+                                try:
+                                    cantidad = int(str(row[2]).replace(".", "").replace(",", ""))
+                                    precio_costo = float(str(row[3]).replace(".", "").replace(",", "."))
+                                except:
+                                    continue
                                 productos.append({
                                     "codigo": codigo,
-                                    "nombre": nombre,
+                                    "nombre": descripcion,
                                     "cantidad": cantidad,
                                     "precio_costo": precio_costo
                                 })
@@ -290,6 +299,33 @@ elif opcion == "Facturas":
         except Exception as e:
             st.error(f"❌ Error al registrar factura: {e}")
 
+    st.divider()
+
+    # --- Listado de facturas ---
+    st.subheader("Facturas registradas")
+
+    def cargar_facturas():
+        resp = supabase.table("facturas").select("*").order("fecha", desc=True).execute()
+        return pd.DataFrame(resp.data) if resp.data else pd.DataFrame()
+
+    def cargar_detalle_factura(factura_id: str):
+        resp = supabase.table("factura_detalle").select("*").eq("factura_id", factura_id).execute()
+        return pd.DataFrame(resp.data) if resp.data else pd.DataFrame()
+
+    df_facturas = cargar_facturas()
+
+    if df_facturas.empty:
+        st.info("No hay facturas registradas.")
+    else:
+        for _, row in df_facturas.iterrows():
+            with st.expander(f"Factura {row['numero']} — Proveedor: {row['proveedor']} — Fecha: {row['fecha']}"):
+                st.markdown(f"[📄 Ver documento PDF]({row['archivo_url']})")
+
+                df_det = cargar_detalle_factura(row["id"])
+                if df_det.empty:
+                    st.info("Sin detalle.")
+                else:
+                    st.dataframe(df_det, use_container_width=True)
 
 # ==============================
 # SECCIÓN HISTORIAL
