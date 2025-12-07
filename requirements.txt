@@ -6,3 +6,5 @@ python-barcode
 XlsxWriter
 openpyxl
 pyzbar
+pyzbar
+opencv-python
