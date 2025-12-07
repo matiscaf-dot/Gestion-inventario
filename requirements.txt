@@ -8,3 +8,4 @@ openpyxl
 pyzbar
 pyzbar
 opencv-python
+PyGithub
