@@ -14,14 +14,10 @@ st.set_page_config(page_title="Inventario FullTime", layout="wide")
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
+def actualizar_clave(usuario, nueva_clave):
+    hashed = hash_password(nueva_clave)
+    supabase.table("usuarios").update({"clave": hashed}).eq("usuario", usuario).execute()
 
-usuario = "admin"
-clave_plana = "1234"
-
-hashed = bcrypt.hashpw(clave_plana.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
-supabase.table("usuarios").update({"clave": hashed}).eq("usuario", usuario).execute()
-# ==============================
 # FUNCIONES AUXILIARES
 # ==============================
 def hash_password(password: str) -> str:
@@ -215,3 +211,15 @@ elif opcion == "Configuración":
             else:
                 guardar_usuario(nuevo_usuario, clave_usuario, rol_usuario)
                 st.success(f"Usuario {nuevo_usuario} agregado correctamente.")
+st.write("Actualizar contraseña de usuario existente:")
+with st.form("form_actualizar_clave"):
+    usuario_existente = st.text_input("Usuario existente")
+    nueva_clave = st.text_input("Nueva clave", type="password")
+    actualizar = st.form_submit_button("Actualizar contraseña")
+    if actualizar:
+        if usuario_existente in usuarios:
+            actualizar_clave(usuario_existente, nueva_clave)
+            st.success(f"Contraseña de {usuario_existente} actualizada correctamente.")
+        else:
+            st.error("El usuario no existe.")
+
