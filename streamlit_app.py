@@ -578,13 +578,21 @@ if st.session_state["pagina"] == "subir_facturas":
             # Validar contra memoria local
             if num_factura in st.session_state["facturas_rechazadas"]:
                 st.error(f"❌ La factura N° {num_factura} ya fue rechazada previamente. No se puede volver a subir.")
+                # Resetear memoria local
+                if "df_norm" in st.session_state:
+                    del st.session_state["df_norm"]
+                st.session_state["uploaded_file"] = None
                 st.stop()
         
             # Validar contra Supabase
             factura_existente = supabase.table("detalle_factura_tmp").select("id").eq("num_factura", num_factura).execute()
             if factura_existente.data and len(factura_existente.data) > 0:
                 st.error(f"❌ La factura N° {num_factura} ya existe en el sistema. No se puede volver a subir.")
-                st.session_state["facturas_rechazadas"].add(num_factura)  # Guardar en memoria
+                st.session_state["facturas_rechazadas"].add(num_factura)
+                # Resetear memoria local
+                if "df_norm" in st.session_state:
+                    del st.session_state["df_norm"]
+                st.session_state["uploaded_file"] = None
                 st.stop()
         
             # Si pasa ambas validaciones → insertar
@@ -631,43 +639,6 @@ if st.session_state["pagina"] == "subir_facturas":
                     "precio_producto": None
                 })
         
-            st.write("Productos a insertar:", productos)
-            supabase.table("productos_tmp").insert(productos).execute()
-            st.success("Factura enviada a bodega exitosamente.")
-
-            # Asegurar códigos de proveedor
-            df_norm["codigo_proveedor"] = df_norm["codigo_proveedor"].fillna("")
-            for idx, row in df_norm.iterrows():
-                if row["codigo_proveedor"] in [None, "", " "]:
-                    correlativo = str(idx + 1).zfill(4)
-                    df_norm.at[idx, "codigo_proveedor"] = f"GEN-{factura_id}-{correlativo}"
-
-            # Insertar productos
-            def safe_int(x):
-                try:
-                    return int(float(x))
-                except:
-                    return 0
-            
-            def safe_float(x):
-                try:
-                    return round(float(str(x).replace(",", ".").replace(" ", "").strip()), 2)
-                except:
-                    return 0.0
-            
-            productos = []
-            for _, row in df_norm.iterrows():
-                productos.append({
-                    "factura_id": factura_id,
-                    "codigo_proveedor": str(row.get("codigo_proveedor", "")).strip(),
-                    "descripcion_item": str(row.get("descripcion_item", "")).strip(),
-                    "cantidad_factura": safe_int(row.get("cantidad")),
-                    "valor_unitario": safe_float(row.get("valor_unitario")),
-                    "valor_total": safe_float(row.get("valor_tot")),
-                    "cantidad_real": None,
-                    "precio_producto": None
-                })
-
             st.write("Productos a insertar:", productos)
             supabase.table("productos_tmp").insert(productos).execute()
             st.success("Factura enviada a bodega exitosamente.")
