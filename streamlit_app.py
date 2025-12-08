@@ -222,7 +222,7 @@ if st.session_state["pagina"] == "entradas":
                         "precio_costo": precio_costo
                     })
 
-                        if productos:
+            if productos:
                 st.success(f"✅ Productos detectados: {len(productos)}")
                 st.dataframe(productos)
                 for p in productos:
