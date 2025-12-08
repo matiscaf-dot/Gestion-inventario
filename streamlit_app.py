@@ -336,18 +336,9 @@ if st.session_state["pagina"] == "entradas":
         st.stop()
     st.title("📦 Registrar Entrada de Inventario")
     prov_df = cargar_proveedores()
-    codigo = st.text_input("Código del producto")
-    nombre = st.text_input("Nombre del producto (opcional)")
-    cantidad = st.number_input("Cantidad a ingresar", min_value=1, step=1, value=1)
-    precio_costo = st.number_input("Precio costo (opcional)", min_value=0.0, step=0.1, format="%.2f", value=0.0)
-    precio_venta = st.number_input("Precio venta (opcional)", min_value=0.0, step=0.1, format="%.2f", value=0.0)
-    prov_options = [""] + prov_df["nombre"].astype(str).tolist()
-    proveedor_sel = st.selectbox("Proveedor asociado (opcional)", prov_options)
-    nuevo_proveedor_txt = st.text_input("O crea nuevo proveedor (nombre) - opcional")
-
+    st.button("✅ Autorizar Facturas", use_container_width=True, on_click=go_to, args=("autorizar_facturas",))
     if st.button("✅ Registrar entrada"):
         # ... lógica de registrar_movimiento
-        st.button("✅ Autorizar Facturas", use_container_width=True, on_click=go_to, args=("autorizar_facturas",))
         pass
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
