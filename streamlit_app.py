@@ -236,6 +236,7 @@ elif opcion == "Facturas":
     factura_file = st.file_uploader("Selecciona factura en PDF", type=["pdf"])
 
     if factura_file is not None and st.button("Registrar Factura"):
+        st.text("Hola4")
         try:
             # 1. Subir archivo a Supabase Storage
             import re, uuid
