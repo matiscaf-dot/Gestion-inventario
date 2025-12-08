@@ -274,7 +274,6 @@ if st.session_state["pagina"] == "menu":
             st.button("⚙️ Configuración", use_container_width=True, on_click=go_to, args=("configuracion",))
             st.button("📇 Proveedores", use_container_width=True, on_click=go_to, args=("proveedores",))
             st.button("📄 Subir Factura", use_container_width=True, on_click=go_to, args=("subir_facturas",))
-            st.button("✅ Autorizar Facturas", use_container_width=True, on_click=go_to, args=("autorizar_facturas",))
     st.markdown("---")
     if st.button("🚪 Cerrar sesión", use_container_width=True):
         st.session_state["logueado"] = False
@@ -321,6 +320,7 @@ if st.session_state["pagina"] == "productos":
     st.subheader("Listado actual")
     st.dataframe(df, use_container_width=True)
     st.divider()
+    
     st.subheader("Agregar o editar producto")
     codigo = st.text_input("Código del producto")
     nombre = st.text_input("Nombre del producto")
@@ -335,6 +335,13 @@ if st.session_state["pagina"] == "productos":
     if st.button("💾 Guardar producto"):
         # ... misma lógica de guardar que antes
         pass
+
+        st.divider()
+    if st.session_state["rol"] == "bodeguero" or :
+        st.subheader("Facturas")
+        st.button("📄 Subir Factura", use_container_width=True, on_click=go_to, args=("subir_facturas",))
+        st.button("✅ Autorizar Facturas", use_container_width=True, on_click=go_to, args=("autorizar_facturas",))
+
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
 
