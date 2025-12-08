@@ -579,13 +579,13 @@ if st.session_state["pagina"] == "subir_facturas":
 
         # 2) Botón para enviar a bodega
         if st.button("Enviar a Bodega"):
+            # Mostrar resumen de la factura
             factura_info = {
-                "proveedor": df_norm["proveedor"].iloc[0],
-                "num_factura": df_norm["num_factura"].iloc[0],
-                "fecha_emision": df_norm["fecha_emision"].iloc[0],
-                "estado": "pendiente"
+                "Proveedor": str(df_norm["proveedor"].iloc[0] or "").strip(),
+                "Nº Factura": str(df_norm["num_factura"].iloc[0] or "").strip(),
+                "Fecha Emisión": str(df_norm["fecha_emision"].iloc[0] or "").strip(),
+                "Estado": "pendiente"
             }
-
             factura_insert = supabase.table("detalle_factura_tmp").insert(factura_info).execute()
             factura_id = factura_insert.data[0]["id"]
 
