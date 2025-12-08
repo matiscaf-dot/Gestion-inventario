@@ -232,6 +232,7 @@ elif opcion == "Facturas":
     numero = st.text_input("Número de factura")
     proveedor = st.text_input("Proveedor")
     fecha = st.date_input("Fecha", datetime.now().date())
+    print("Hola2")
     factura_file = st.file_uploader("Selecciona factura en PDF", type=["pdf"])
 
     if factura_file is not None and st.button("Registrar Factura"):
@@ -247,7 +248,7 @@ elif opcion == "Facturas":
                 factura_file.getvalue()
             )
             url_publica = supabase.storage.from_("facturas").get_public_url(unique_filename)
-
+            print("Hola")
             # 2. Insertar cabecera en tabla facturas
             factura = supabase.table("facturas").insert({
                 "numero": numero,
@@ -255,6 +256,7 @@ elif opcion == "Facturas":
                 "fecha": fecha.isoformat(),
                 "archivo_url": url_publica
             }).execute()
+            print("Hola1")
             factura_id = factura.data[0]["id"]
 
             # 3. Extraer productos del PDF
