@@ -57,8 +57,8 @@ def render():
                     "cantidad_factura": int(row.get("cantidad_factura", 0)),
                     "valor_unitario": float(row.get("valor_unitario", 0.0)),
                     "valor_total": float(row.get("valor_total", 0.0)),
-                    "cantidad_real": row.get("cantidad_real", None),
-                    "precio_producto": float(row.get("precio_producto", 0.0))
+                    "cantidad_real": int(row.get("cantidad_real", None)),
+                    "precio_producto": int(row.get("precio_producto", 0.0))
                 })
         
             # Insertar en inventario
