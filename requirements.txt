@@ -6,10 +6,10 @@ python-barcode
 XlsxWriter
 openpyxl
 pyzbar
-pyzbar
 opencv-python
 PyGithub
 supabase
 bcrypt
 pdfplumber
 pytesseract
+PyPDF2
