@@ -568,67 +568,72 @@ if st.session_state["pagina"] == "subir_facturas":
         st.dataframe(df_norm[["descripcion_item", "cantidad_final", "valor_unitario"]])
 
         # 2) Botón para enviar a bodega
+        # Inicializar lista de facturas rechazadas en memoria
+        if "facturas_rechazadas" not in st.session_state:
+            st.session_state["facturas_rechazadas"] = set()
+        
         if st.button("Enviar a Bodega"):
-            # Mostrar resumen de la factura
+            num_factura = str(df_norm["num_factura"].iloc[0] or "").strip()
+        
+            # Validar contra memoria local
+            if num_factura in st.session_state["facturas_rechazadas"]:
+                st.error(f"❌ La factura N° {num_factura} ya fue rechazada previamente. No se puede volver a subir.")
+                st.stop()
+        
+            # Validar contra Supabase
+            factura_existente = supabase.table("detalle_factura_tmp").select("id").eq("num_factura", num_factura).execute()
+            if factura_existente.data and len(factura_existente.data) > 0:
+                st.error(f"❌ La factura N° {num_factura} ya existe en el sistema. No se puede volver a subir.")
+                st.session_state["facturas_rechazadas"].add(num_factura)  # Guardar en memoria
+                st.stop()
+        
+            # Si pasa ambas validaciones → insertar
             factura_info = {
                 "proveedor": str(df_norm["proveedor"].iloc[0] or "").strip(),
-                "num_factura": str(df_norm["num_factura"].iloc[0] or "").strip(),
+                "num_factura": num_factura,
                 "fecha_emision": str(df_norm["fecha_emision"].iloc[0] or "").strip(),
                 "estado": "pendiente",
             }
+            factura_insert = supabase.table("detalle_factura_tmp").insert(factura_info).execute()
+            factura_id = factura_insert.data[0]["id"]
         
-            # Verificar si ya existe la factura en el sistema
-            factura_existente = supabase.table("detalle_factura_tmp").select("id").eq("num_factura", factura_info["num_factura"]).execute()
+            # Asegurar códigos de proveedor
+            df_norm["codigo_proveedor"] = df_norm["codigo_proveedor"].fillna("")
+            for idx, row in df_norm.iterrows():
+                if row["codigo_proveedor"] in [None, "", " "]:
+                    correlativo = str(idx + 1).zfill(4)
+                    df_norm.at[idx, "codigo_proveedor"] = f"GEN-{factura_id}-{correlativo}"
         
-            if factura_existente.data and len(factura_existente.data) > 0:
-                st.error(f"❌ La factura N° {factura_info['num_factura']} ya existe en el sistema. No se puede volver a subir.")
-                st.stop()
-            else:
-                # Insertar nueva factura
-                df_resumen = pd.DataFrame([factura_info])
-                st.subheader("🧾 Resumen de la Factura")
-                st.dataframe(df_resumen, use_container_width=True)
+            # Funciones de sanitización
+            def safe_int(x):
+                try:
+                    return int(float(x))
+                except:
+                    return 0
         
-                factura_insert = supabase.table("detalle_factura_tmp").insert(factura_info).execute()
-                factura_id = factura_insert.data[0]["id"]
+            def safe_float(x):
+                try:
+                    return round(float(str(x).replace(",", ".").replace(" ", "").strip()), 2)
+                except:
+                    return 0.0
         
-                # Asegurar códigos de proveedor
-                df_norm["codigo_proveedor"] = df_norm["codigo_proveedor"].fillna("")
-                for idx, row in df_norm.iterrows():
-                    if row["codigo_proveedor"] in [None, "", " "]:
-                        correlativo = str(idx + 1).zfill(4)
-                        df_norm.at[idx, "codigo_proveedor"] = f"GEN-{factura_id}-{correlativo}"
+            # Insertar productos
+            productos = []
+            for _, row in df_norm.iterrows():
+                productos.append({
+                    "factura_id": factura_id,
+                    "codigo_proveedor": str(row.get("codigo_proveedor", "")).strip(),
+                    "descripcion_item": str(row.get("descripcion_item", "")).strip(),
+                    "cantidad_factura": safe_int(row.get("cantidad")),
+                    "valor_unitario": safe_float(row.get("valor_unitario")),
+                    "valor_total": safe_float(row.get("valor_tot")),
+                    "cantidad_real": None,
+                    "precio_producto": None
+                })
         
-                # Funciones de sanitización
-                def safe_int(x):
-                    try:
-                        return int(float(x))
-                    except:
-                        return 0
-        
-                def safe_float(x):
-                    try:
-                        return round(float(str(x).replace(",", ".").replace(" ", "").strip()), 2)
-                    except:
-                        return 0.0
-        
-                # Insertar productos
-                productos = []
-                for _, row in df_norm.iterrows():
-                    productos.append({
-                        "factura_id": factura_id,
-                        "codigo_proveedor": str(row.get("codigo_proveedor", "")).strip(),
-                        "descripcion_item": str(row.get("descripcion_item", "")).strip(),
-                        "cantidad_factura": safe_int(row.get("cantidad")),
-                        "valor_unitario": safe_float(row.get("valor_unitario")),
-                        "valor_total": safe_float(row.get("valor_tot")),
-                        "cantidad_real": None,
-                        "precio_producto": None
-                    })
-        
-                st.write("Productos a insertar:", productos)
-                supabase.table("productos_tmp").insert(productos).execute()
-                st.success("Factura enviada a bodega exitosamente.")
+            st.write("Productos a insertar:", productos)
+            supabase.table("productos_tmp").insert(productos).execute()
+            st.success("Factura enviada a bodega exitosamente.")
 
             # Asegurar códigos de proveedor
             df_norm["codigo_proveedor"] = df_norm["codigo_proveedor"].fillna("")
