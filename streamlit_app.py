@@ -696,7 +696,7 @@ if st.session_state["pagina"] == "subir_facturas":
                 })
 
             st.write("Productos a insertar:", productos)
-            supabase.table("inventario").insert(productos).execute()
+            supabase.table("productos_tmp").insert(productos).execute()
             st.success("Factura enviada a bodega exitosamente.")
 
     if st.button("⬅️ Volver al menú principal"):
