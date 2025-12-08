@@ -289,10 +289,22 @@ if st.session_state["pagina"] == "menu":
 # ==============================
 if st.session_state["pagina"] == "dashboard":
     st.title("📦 Tabla Inventario")
-    df = cargar_datos()
-    st.metric("Total de Productos", int(len(df)))
-    st.metric("Stock Total", int(df["cantidad"].sum()))
+
+    # Conexión a Supabase
+    from supabase import create_client
+    SUPABASE_URL = st.secrets["SUPABASE_URL"]
+    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+    # Consultar inventario desde Supabase
+    response = supabase.table("inventario").select("*").execute()
+    df = pd.DataFrame(response.data)
+
+    # Mostrar métricas y tabla
+    st.metric("Total de Productos", len(df))
+    st.metric("Stock Total", int(df["cantidad_factura"].sum()))  # ajusta según tu columna real
     st.dataframe(df, use_container_width=True)
+
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
 
