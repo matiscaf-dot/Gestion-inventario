@@ -251,7 +251,7 @@ elif opcion == "Entradas":
                                     st.text("Hola16")
                                     cantidad = int(str(row[2]).replace(".", "").replace(",", ""))
                                     precio_costo = float(str(row[3]).replace(".", "").replace(",", "."))
-                                except:
+                                except Exception as e:
                                     st.write("Error parseando fila:",e)
                                     continue
                                 productos.append({
