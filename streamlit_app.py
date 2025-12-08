@@ -243,7 +243,7 @@ elif opcion == "Entradas":
                         for row in table:
                             st.write("Fila:",row)
                             st.text("Hola14")
-                            if row and len(row) >= 4:
+                            if row and len(row) >= 3:
                                 st.text("Hola15")
                                 codigo = str(row[0]).strip()
                                 descripcion = str(row[1]).strip()
