@@ -35,7 +35,7 @@ def render():
         # Traer productos asociados
         productos = supabase.table("productos_tmp").select("*").eq("factura_id", factura_sel["id"]).execute().data
         df_prod = pd.DataFrame(productos)
-        cols = ["codigo_proveedor", "descripcion_item", "cantidad_sugerida", "valor_unitario", "valor_total"]
+        cols = ["codigo_proveedor", "descripcion_item", "cantidad_factura", "valor_unitario", "valor_total"]
         cols_validas = [c for c in cols if c in df_prod.columns]
         st.dataframe(df_prod[cols_validas])
 
@@ -46,7 +46,7 @@ def render():
             for _, row in df_prod.iterrows():
                 codigo = str(row.get("codigo_proveedor", "")).strip()
                 descripcion = str(row.get("descripcion_item", "")).strip()
-                cantidad = int(row.get("cantidad_sugerida", 0))
+                cantidad = int(row.get("cantidad_factura", 0))
                 valor_unitario = float(row.get("valor_unitario", 0.0))
         
                 registrar_historial(
