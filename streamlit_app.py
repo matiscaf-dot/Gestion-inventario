@@ -245,11 +245,12 @@ elif opcion == "Facturas":
             safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', factura_file.name)
             st.text("Hola6")
             unique_filename = f"{uuid.uuid4()}_{safe_filename}"
-
+            st.text("Hola7")
             supabase.storage.from_("facturas").upload(
                 unique_filename,
                 factura_file.getvalue()
             )
+            st.text("Hola8")
             url_publica = supabase.storage.from_("facturas").get_public_url(unique_filename)
             st.text("Hola")
             # 2. Insertar cabecera en tabla facturas
