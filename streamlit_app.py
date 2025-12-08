@@ -238,10 +238,12 @@ elif opcion == "Facturas":
     if factura_file is not None and st.button("Registrar Factura"):
         st.text("Hola4")
         try:
+            st.text("Hola5")
             # 1. Subir archivo a Supabase Storage
             import re, uuid
             # Normalizar nombre de archivo para evitar errores InvalidKey
             safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', factura_file.name)
+            st.text("Hola6")
             unique_filename = f"{uuid.uuid4()}_{safe_filename}"
 
             supabase.storage.from_("facturas").upload(
