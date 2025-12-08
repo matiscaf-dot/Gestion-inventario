@@ -708,7 +708,7 @@ if st.session_state["pagina"] == "subir_facturas":
 # ==============================
 if st.session_state["pagina"] == "autorizar_facturas":
     try:
-        import pages.autorizar_facturas as autorizar_facturas
+        import autorizar_facturas as autorizar_facturas
         autorizar_facturas.render()
     except Exception as e:
         st.error(f"No se pudo cargar la página de Autorizar Facturas: {e}")
