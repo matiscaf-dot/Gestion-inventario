@@ -233,12 +233,15 @@ elif opcion == "Entradas":
             productos = []
             with pdfplumber.open(io.BytesIO(factura_file.getvalue())) as pdf:
                 st.text("Hola11")
-                for page in pdf.pages:
+                for page_num, page in enumerate(pdf.pages, start1):
                     st.text("Hola12")
                     tables = page.extract_tables()
+                    st.write(f"Página {page_num} → Tablas de tectadas: {len(tables}")
                     for table in tables:
                         st.text("Hola13")
+                        st.wrtie("Tabla detectada:", table)
                         for row in table:
+                            st.write("Fila:",row)
                             st.text("Hola14")
                             if row and len(row) >= 4:
                                 st.text("Hola15")
@@ -249,6 +252,7 @@ elif opcion == "Entradas":
                                     cantidad = int(str(row[2]).replace(".", "").replace(",", ""))
                                     precio_costo = float(str(row[3]).replace(".", "").replace(",", "."))
                                 except:
+                                    st.write("Error parseando fila:",e)
                                     continue
                                 productos.append({
                                     "codigo": codigo,
