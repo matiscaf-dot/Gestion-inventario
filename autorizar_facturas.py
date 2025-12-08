@@ -3,7 +3,7 @@ from supabase import create_client
 import pandas as pd
 from datetime import datetime
 from core.facturas import normalizar_tabla
-from app import cargar_datos, guardar_datos, registrar_historial
+from streamlit_app import cargar_datos, guardar_datos, registrar_historial
 
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
