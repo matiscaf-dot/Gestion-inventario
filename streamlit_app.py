@@ -27,7 +27,6 @@ os.makedirs(CAPTURAS_DIR, exist_ok=True)
 
 # ==============================
 # Intento de import para lector de códigos de barras (pyzbar)
-# No se importa al inicio con from pyzbar... para evitar romper la app cuando falta zbar.
 # ==============================
 _HAS_PYZBAR = False
 try:
@@ -40,7 +39,6 @@ except Exception:
 # FUNCIONES AUXILIARES
 # ==============================
 def asegurar_usuarios_iniciales():
-    """Si no existe usuarios.json, crea uno con usuarios por defecto."""
     if not os.path.exists(USUARIOS_FILE):
         usuarios_default = {
             "admin": {"clave": "1234", "rol": "admin"},
@@ -61,31 +59,22 @@ def guardar_usuarios(data):
     with open(USUARIOS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 
-# --- Helpers para Excel con múltiples hojas (productos + proveedores) ---
 def cargar_datos():
-    """
-    Carga la hoja 'productos' desde DATA_FILE. Si no existe, intenta leer la primera hoja.
-    Devuelve DataFrame con columnas mínimas garantizadas.
-    """
     if os.path.exists(DATA_FILE):
-        # Intentar leer hoja 'productos'
         try:
             df = pd.read_excel(DATA_FILE, sheet_name="productos")
         except Exception:
-            # fallback: primera hoja
             try:
                 df = pd.read_excel(DATA_FILE, sheet_name=0)
             except Exception:
                 df = pd.DataFrame()
     else:
         df = pd.DataFrame()
-
     if df is None or df.empty:
         df = pd.DataFrame(columns=[
             "codigo", "nombre", "descripcion", "categoria",
             "cantidad", "precio_costo", "precio_venta", "fecha_ingreso", "proveedor"
         ])
-    # Normalizar columnas
     df.columns = df.columns.str.lower().str.replace(" ", "_")
     expected_cols = ["codigo", "nombre", "descripcion", "categoria",
                      "cantidad", "precio_costo", "precio_venta", "fecha_ingreso", "proveedor"]
@@ -97,7 +86,6 @@ def cargar_datos():
                 df[col] = 0.0
             else:
                 df[col] = ""
-    # Forzar tipos
     try:
         df["cantidad"] = pd.to_numeric(df["cantidad"], errors="coerce").fillna(0).astype(int)
     except Exception:
@@ -107,14 +95,10 @@ def cargar_datos():
             df[pcol] = pd.to_numeric(df[pcol], errors="coerce").fillna(0.0).astype(float)
         except Exception:
             df[pcol] = df[pcol].apply(lambda x: float(x) if pd.notna(x) and is_number(str(x)) else 0.0)
-    # Asegurar codigo como string
     df["codigo"] = df["codigo"].astype(str)
     return df
 
 def cargar_proveedores():
-    """
-    Lee la hoja 'proveedores' del excel si existe. Si no, devuelve df vacío con columnas esperadas.
-    """
     if os.path.exists(DATA_FILE):
         try:
             prov = pd.read_excel(DATA_FILE, sheet_name="proveedores")
@@ -128,23 +112,14 @@ def cargar_proveedores():
     return prov
 
 def guardar_all(product_df, prov_df):
-    """
-    Guarda ambas hojas (productos y proveedores) en DATA_FILE.
-    Reescribe el archivo completo (ambas hojas).
-    """
     try:
-        # Usar openpyxl (asegúrate que esté instalado)
         with pd.ExcelWriter(DATA_FILE, engine="openpyxl") as writer:
             product_df.to_excel(writer, sheet_name="productos", index=False)
             prov_df.to_excel(writer, sheet_name="proveedores", index=False)
-    except Exception as e:
-        # fallback simple: guardar solo productos (no recomendable pero evita fallo total)
+    except Exception:
         product_df.to_excel(DATA_FILE, index=False)
 
 def guardar_datos(df):
-    """
-    Guarda productos en la hoja 'productos', manteniendo la hoja 'proveedores' actual.
-    """
     prov = cargar_proveedores()
     guardar_all(df, prov)
 
@@ -159,9 +134,6 @@ def is_number(s):
     except:
         return False
 
-# ==============================
-# HISTORIAL (CSV) - ahora con proveedor y nota
-# ==============================
 def registrar_historial(usuario, tipo, codigo, nombre, cantidad, proveedor="", nota=""):
     fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     entrada = pd.DataFrame([{
@@ -181,15 +153,8 @@ def registrar_historial(usuario, tipo, codigo, nombre, cantidad, proveedor="", n
         historial = entrada
     historial.to_csv(HISTORIAL_FILE, index=False)
 
-# ==============================
-# registrar movimiento (usa guardar_all internamente)
-# ==============================
 def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None,
                          precio_costo=None, precio_venta=None, descripcion=None, categoria=None, proveedor=""):
-    """
-    tipo: "entrada" o "salida" o "nuevo" (si se crea manualmente desde productos)
-    cantidad: int
-    """
     df = cargar_datos()
     df["codigo"] = df["codigo"].astype(str)
     codigo = str(codigo).strip()
@@ -197,7 +162,6 @@ def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None,
 
     if tipo == "entrada":
         if codigo in df["codigo"].values:
-            # actualizar cantidad y campos opcionales
             df.loc[df["codigo"] == codigo, "cantidad"] = df.loc[df["codigo"] == codigo, "cantidad"].astype(int) + int(cantidad)
             if precio_costo is not None:
                 df.loc[df["codigo"] == codigo, "precio_costo"] = float(precio_costo)
@@ -212,7 +176,6 @@ def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None,
             guardar_datos(df)
             registrar_historial(usuario_actual, "entrada", codigo, nombre, int(cantidad), proveedor=proveedor, nota="")
         else:
-            # producto nuevo -> crear y marcar en historial como 'nuevo'
             nueva_fila = pd.DataFrame({
                 "codigo": [codigo],
                 "nombre": [nombre if nombre else "Sin nombre"],
@@ -231,7 +194,6 @@ def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None,
         if codigo in df["codigo"].values:
             idx = df.index[df["codigo"] == codigo]
             df.loc[idx, "cantidad"] = df.loc[idx, "cantidad"].astype(int) - int(cantidad)
-            # Si queda en 0 o negativo, eliminar el registro (o lo dejamos con 0 según preferencia)
             if df.loc[idx, "cantidad"].iloc[0] <= 0:
                 df = df[df["codigo"] != codigo]
             guardar_datos(df)
@@ -240,7 +202,6 @@ def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None,
             st.error("❌ El producto no existe en inventario.")
             return
     elif tipo == "nuevo":
-        # fuerza creación manual desde página Productos
         df = cargar_datos()
         nueva_fila = pd.DataFrame({
             "codigo": [codigo],
@@ -258,13 +219,9 @@ def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None,
         registrar_historial(usuario_actual, "nuevo", codigo, nombre, int(cantidad), proveedor=proveedor, nota="Producto creado manualmente")
 
 # ==============================
-# Lector de código de barras desde PIL.Image usando pyzbar (si está disponible)
+# Lector de código de barras desde PIL.Image usando pyzbar
 # ==============================
 def decode_barcode_from_pil(pil_img):
-    """
-    Devuelve el primer código encontrado como string o '' si no encuentra.
-    Usa pyzbar si está instalado.
-    """
     if not _HAS_PYZBAR:
         return ""
     try:
@@ -346,8 +303,9 @@ if st.session_state["pagina"] == "menu":
     with col5:
         if rol == "admin":
             st.button("⚙️ Configuración", use_container_width=True, on_click=go_to, args=("configuracion",))
-            # Mostrar acceso directo a proveedores (admin)
             st.button("📇 Proveedores", use_container_width=True, on_click=go_to, args=("proveedores",))
+            st.button("📄 Subir Factura", use_container_width=True, on_click=go_to, args=("subir_facturas",))
+            st.button("✅ Autorizar Facturas", use_container_width=True, on_click=go_to, args=("autorizar_facturas",))
 
     st.markdown("---")
     if st.button("🚪 Cerrar sesión", use_container_width=True):
@@ -394,13 +352,11 @@ if st.session_state["pagina"] == "productos":
     st.divider()
     st.subheader("Agregar o editar producto (nuevo)")
 
-    # Opción cámara para capturar el código de barra
     st.markdown("**Capturar código con la cámara (recomendado para códigos físicos)**")
     cam_img = st.camera_input("Toma una foto del código o producto (si tu navegador lo permite)")
 
     detected_code = ""
     if cam_img:
-        # Guardar imagen temporal
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         cam_path = os.path.join(CAPTURAS_DIR, f"producto_{timestamp}.jpg")
         with open(cam_path, "wb") as f:
@@ -413,7 +369,7 @@ if st.session_state["pagina"] == "productos":
                 st.info(f"Código detectado: {detected_code}")
             else:
                 if not _HAS_PYZBAR:
-                    st.warning("No se pudo decodificar: pyzbar no está instalado. Para habilitar lector de códigos, instala pyzbar y zbar (ver instrucciones abajo).")
+                    st.warning("No se pudo decodificar: pyzbar no está instalado. Para habilitar lector de códigos, instala pyzbar y zbar.")
                 else:
                     st.info("No se detectó código en la imagen (intenta acercar la cámara o enfocar el código).")
         except Exception as e:
@@ -428,7 +384,6 @@ if st.session_state["pagina"] == "productos":
     precio_costo = st.number_input("Precio costo", min_value=0.0, step=0.1, format="%.2f", value=0.0)
     precio_venta = st.number_input("Precio venta", min_value=0.0, step=0.1, format="%.2f", value=0.0)
 
-    # Proveedor (seleccionar o crear)
     prov_options = [""] + prov_df["nombre"].astype(str).tolist()
     proveedor_sel = st.selectbox("Proveedor (opcional)", prov_options)
     nuevo_proveedor_txt = st.text_input("O crea un nuevo proveedor (nombre) - opcional")
@@ -439,7 +394,6 @@ if st.session_state["pagina"] == "productos":
             codigo = str(codigo).strip()
             prov_choice = nuevo_proveedor_txt.strip() if nuevo_proveedor_txt.strip() else proveedor_sel
             if codigo in producto_df["codigo"].astype(str).values:
-                # editar
                 producto_df.loc[producto_df["codigo"].astype(str) == codigo, "nombre"] = nombre
                 producto_df.loc[producto_df["codigo"].astype(str) == codigo, "descripcion"] = descripcion
                 producto_df.loc[producto_df["codigo"].astype(str) == codigo, "categoria"] = categoria
@@ -448,9 +402,7 @@ if st.session_state["pagina"] == "productos":
                 producto_df.loc[producto_df["codigo"].astype(str) == codigo, "precio_venta"] = float(precio_venta)
                 producto_df.loc[producto_df["codigo"].astype(str) == codigo, "proveedor"] = prov_choice
                 st.success("✅ Producto actualizado correctamente.")
-                # registrar historial de edición como 'entrada' si cantidad aumentó? (dejamos fuera)
             else:
-                # crear nuevo producto y registrar historial tipo 'nuevo'
                 nueva_fila = pd.DataFrame({
                     "codigo": [codigo],
                     "nombre": [nombre],
@@ -465,7 +417,6 @@ if st.session_state["pagina"] == "productos":
                 producto_df = pd.concat([producto_df, nueva_fila], ignore_index=True)
                 st.success("✅ Producto agregado correctamente.")
                 registrar_historial(st.session_state.get("usuario"), "nuevo", codigo, nombre, int(cantidad), proveedor=prov_choice, nota="Producto creado desde pantalla Productos")
-            # Si se creó un nuevo proveedor por el campo, lo agregamos a proveedores
             if nuevo_proveedor_txt.strip():
                 prov_df_local = cargar_proveedores()
                 new_id = 1 if prov_df_local.empty else (prov_df_local["id"].max() + 1 if "id" in prov_df_local.columns and pd.api.types.is_numeric_dtype(prov_df_local["id"]) else len(prov_df_local) + 1)
@@ -489,15 +440,8 @@ if st.session_state["pagina"] == "productos":
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
 
-    # Instrucciones para instalar pyzbar si no está
     if not _HAS_PYZBAR:
         st.info("Para habilitar lectura automática de códigos necesitas instalar `pyzbar` y el binario `zbar` en tu sistema.")
-        st.markdown("""
-**Instalación sugerida (ejemplos):**
-- Linux (Debian/Ubuntu): `sudo apt-get install -y libzbar0 && pip install pyzbar`
-- Mac (Homebrew): `brew install zbar && pip install pyzbar`
-- Windows: instalar ZBar (busca instalador) y luego `pip install pyzbar`
-""")
 
 # ==============================
 # ENTRADAS (con cámara + proveedor + factura PDF mejorado)
@@ -510,7 +454,6 @@ if st.session_state["pagina"] == "entradas":
     st.title("📦 Registrar Entrada de Inventario")
     prov_df = cargar_proveedores()
 
-    # Captura por cámara (opcional) para obtener código
     st.subheader("Capturar imagen con la cámara (opcional) para leer código de barras")
     camera_image = st.camera_input("Toma una foto del producto o código")
 
@@ -542,15 +485,13 @@ if st.session_state["pagina"] == "entradas":
     precio_costo = st.number_input("Precio costo (opcional)", min_value=0.0, step=0.1, format="%.2f", value=0.0)
     precio_venta = st.number_input("Precio venta (opcional)", min_value=0.0, step=0.1, format="%.2f", value=0.0)
 
-    # Proveedor en entrada: seleccionar
     prov_options = [""] + prov_df["nombre"].astype(str).tolist()
     proveedor_sel = st.selectbox("Proveedor asociado (opcional)", prov_options)
     nuevo_proveedor_txt = st.text_input("O crea nuevo proveedor (nombre) - opcional")
 
-    # --- Subida de factura PDF ---
+    # Subida de factura PDF con trazas y fallback OCR (si quieres, puedes reemplazar este flujo por el de pages/subir_facturas.py)
     st.subheader("Subir factura en PDF")
     factura_file = st.file_uploader("Selecciona factura en PDF", type=["pdf"])
-
     if factura_file is not None and st.button("Procesar Factura PDF"):
         try:
             import re, uuid, pdfplumber, io
@@ -564,18 +505,13 @@ if st.session_state["pagina"] == "entradas":
                 f.write(factura_file.getbuffer())
 
             productos = []
-
-            # 1. Intentar con pdfplumber
             with pdfplumber.open(io.BytesIO(factura_file.getvalue())) as pdf:
                 for page_num, page in enumerate(pdf.pages, start=1):
                     tables = page.extract_tables()
                     st.write(f"Página {page_num} → Tablas detectadas: {len(tables)}")
                     for table in tables:
-                        st.write("Tabla detectada:", table)
                         for row in table:
-                            st.write("Fila:", row)
-                            # Ajusta este umbral si tu tabla tiene 3 columnas (p.ej., código, desc, cantidad y el precio/valor en otra tabla)
-                            if row and len(row) > 6:
+                            if row and len(row) >= 4:
                                 codigo_row = str(row[0]).strip()
                                 descripcion_row = str(row[1]).strip()
                                 try:
@@ -595,26 +531,27 @@ if st.session_state["pagina"] == "entradas":
                                         "precio_costo": precio_row
                                     })
 
-            # 2. Fallback OCR si productos está vacío
             if not productos:
                 st.warning("⚠️ No se detectaron productos con pdfplumber. Intentando con OCR...")
-                img = Image.open(io.BytesIO(factura_file.getvalue()))
-                texto = pytesseract.image_to_string(img, lang="spa")
-                st.text_area("Texto detectado por OCR", texto, height=200)
+                # Para PDF usa pdf2image → convertir a imágenes primero (si lo tienes instalado)
+                try:
+                    from pdf2image import convert_from_bytes
+                    images = convert_from_bytes(factura_file.getvalue(), dpi=300)
+                    texto = ""
+                    for img in images:
+                        texto += pytesseract.image_to_string(img, lang="spa") + "\n"
+                except Exception:
+                    # fallback simple (solo funciona si el PDF es imagen)
+                    img = Image.open(io.BytesIO(factura_file.getvalue()))
+                    texto = pytesseract.image_to_string(img, lang="spa")
 
-                # Heurística simple: líneas con estructura [CODIGO] [DESCRIPCION...] [CANTIDAD] [PRECIO]
+                st.text_area("Texto detectado por OCR", texto, height=200)
                 for line in texto.split("\n"):
                     raw = line.strip()
                     if not raw:
                         continue
                     parts = raw.split()
-                    # Buscar un patrón mínimo. Ajusta según tu documento real.
                     if len(parts) >= 4 and parts[-2].replace(",", "").replace(".", "").isdigit():
-                        # Suponemos:
-                        # parts[0] = código
-                        # parts[1: -2] = nombre/descripcion
-                        # parts[-2] = cantidad
-                        # parts[-1] = precio unitario (con coma decimal)
                         codigo_row = parts[0]
                         try:
                             cantidad_row = int(parts[-2].replace(".", "").replace(",", ""))
@@ -633,7 +570,6 @@ if st.session_state["pagina"] == "entradas":
                                 "precio_costo": precio_row
                             })
 
-            # 3. Registrar si se detectaron productos
             if productos:
                 st.success(f"✅ Productos detectados: {len(productos)}")
                 st.dataframe(productos)
@@ -645,21 +581,17 @@ if st.session_state["pagina"] == "entradas":
                 st.success("✅ Productos ingresados desde factura PDF")
             else:
                 st.error("❌ No se detectaron productos válidos en la factura.")
-
         except Exception as e:
             st.error(f"❌ Error al procesar factura PDF: {e}")
 
-    # --- Captura de factura con cámara ---
     st.subheader("Capturar factura con cámara")
     foto = st.camera_input("📸 Toma una foto de la factura")
-
     if foto is not None and st.button("Procesar Factura Foto"):
         try:
             import uuid
             from PIL import Image
             import pytesseract
 
-            # Guardar la foto en carpeta de facturas
             safe_filename = f"{uuid.uuid4()}_captura.jpg"
             factura_path = os.path.join(FACTURAS_DIR, safe_filename)
             with open(factura_path, "wb") as f:
@@ -711,11 +643,9 @@ if st.session_state["pagina"] == "entradas":
                 st.success("✅ Productos ingresados desde factura Foto")
             else:
                 st.error("❌ No se detectaron productos válidos en la foto.")
-
         except Exception as e:
             st.error(f"❌ Error al procesar factura Foto: {e}")
 
-    # --- Registrar entrada manual ---
     if st.button("✅ Registrar entrada"):
         if not codigo:
             st.warning("Ingresa o captura un código antes de registrar.")
@@ -874,22 +804,19 @@ if st.session_state["pagina"] == "proveedores":
 if st.session_state["pagina"] == "ocr":
     st.title("🖼️ OCR - Extraer texto de una imagen (opcional)")
     st.write("Esta página es opcional. Si quieres que el OCR esté integrado en el flujo principal, dime y lo integro.")
-    st.markdown("Nota: el OCR real necesita paquetes externos (pytesseract/paddleocr o modelos transformers).")
-
     uploaded_image = st.file_uploader("Sube una imagen (jpg/png) para extraer texto", type=["png", "jpg", "jpeg"])
     if uploaded_image:
         try:
             pil_img = Image.open(uploaded_image).convert("RGB")
             st.image(pil_img, caption="Imagen subida", use_column_width=True)
-            st.success("Imagen cargada. Implementa tu motor OCR (pytesseract / PaddleOCR / LightOnOCR) para extraer texto.")
+            st.success("Imagen cargada.")
         except Exception as e:
             st.error(f"No se pudo abrir la imagen: {e}")
-
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
 
 # ==============================
-# HISTORIAL (Visible para todos)
+# HISTORIAL
 # ==============================
 if st.session_state["pagina"] == "historial":
     st.title("📝 Historial de Movimientos")
@@ -904,7 +831,6 @@ if st.session_state["pagina"] == "historial":
             filtro_tipo = st.selectbox("Tipo", ["todos", "nuevo", "entrada", "salida"])
         with cols[2]:
             filtro_codigo = st.text_input("Código (exacto)", "")
-
         df_filtrado = df_hist.copy()
         if filtro_usuario:
             df_filtrado = df_filtrado[df_filtrado["usuario"] == filtro_usuario]
@@ -912,27 +838,23 @@ if st.session_state["pagina"] == "historial":
             df_filtrado = df_filtrado[df_filtrado["tipo"] == filtro_tipo]
         if filtro_codigo:
             df_filtrado = df_filtrado[df_filtrado["codigo"] == filtro_codigo]
-
         st.markdown("#### Resultados filtrados")
         st.dataframe(df_filtrado, use_container_width=True)
     else:
         st.info("No hay movimientos registrados todavía.")
-
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
 
 # ==============================
-# BACKUP (página separada)
+# BACKUP
 # ==============================
 if st.session_state["pagina"] == "backup":
     st.title("📦 Copia de Seguridad del Inventario")
     df = cargar_datos()
     prov_df = cargar_proveedores()
-
     fecha = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     backup_name = f"backup_inventario_{fecha}.xlsx"
     buffer = BytesIO()
-    # guardar ambas hojas al buffer
     try:
         with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
             df.to_excel(writer, sheet_name="productos", index=False)
@@ -950,14 +872,11 @@ if st.session_state["pagina"] == "backup":
         )
     except Exception as e:
         st.error(f"Error creando copia de seguridad: {e}")
-
-    st.markdown("_Nota: este botón está oculto del menú principal. La copia crea un archivo Excel con las hojas `productos` y `proveedores` en la carpeta `backups`._")
-
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
 
 # ==============================
-# CONFIGURACIÓN (Solo Admin)
+# CONFIGURACIÓN
 # ==============================
 if st.session_state["pagina"] == "configuracion":
     if st.session_state["rol"] not in ["admin"]:
@@ -965,11 +884,10 @@ if st.session_state["pagina"] == "configuracion":
         st.stop()
 
     st.title("⚙️ Configuración del Sistema")
-    st.write("Desde aquí puedes descargar el inventario completo o gestionar datos del sistema.")
+    st.write("Descarga inventario y gestiona datos del sistema.")
     df = cargar_datos()
     prov_df = cargar_proveedores()
 
-    # Descargar inventario (admin)
     buffer = BytesIO()
     try:
         with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
@@ -994,7 +912,6 @@ if st.session_state["pagina"] == "configuracion":
         st.success("Inventario y proveedores reiniciados correctamente.")
         st.rerun()
 
-    # Exportar historial completo (solo admin)
     if os.path.exists(HISTORIAL_FILE):
         with open(HISTORIAL_FILE, "rb") as f:
             hist_bytes = f.read()
@@ -1061,4 +978,30 @@ if st.session_state["pagina"] == "configuracion":
 
     st.markdown("---")
     if st.button("⬅️ Volver al menú principal", key="cfg_volver"):
+        go_to("menu")
+
+# ==============================
+# Subir facturas (página externa)
+# ==============================
+if st.session_state["pagina"] == "subir_facturas":
+    try:
+        import pages.subir_facturas as subir_facturas
+        subir_facturas.render()
+    except Exception as e:
+        st.error(f"No se pudo cargar la página de Subir Factura: {e}")
+        st.info("Asegúrate de tener pages/subir_facturas.py y core/facturas.py en tu proyecto.")
+    if st.button("⬅️ Volver al menú principal"):
+        go_to("menu")
+
+# ==============================
+# Autorizar facturas (página externa)
+# ==============================
+if st.session_state["pagina"] == "autorizar_facturas":
+    try:
+        import pages.autorizar_facturas as autorizar_facturas
+        autorizar_facturas.render()
+    except Exception as e:
+        st.error(f"No se pudo cargar la página de Autorizar Facturas: {e}")
+        st.info("Asegúrate de tener pages/autorizar_facturas.py y configurar Supabase en secrets.")
+    if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
