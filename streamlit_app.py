@@ -849,10 +849,10 @@ if st.session_state["pagina"] == "proveedores":
             edit_notas = st.text_area("Notas", value=prov_row.get("notas", ""), key="edit_notas")
             if st.button("💾 Guardar cambios proveedor"):
                 prov_df.loc[prov_df["nombre"].astype(str) == sel, "contacto"] = edit_contacto
-                prov_df.loc[prov_df["nombre"].astype str == sel, "email"] = edit_email
-                prov_df.loc[prov_df["nombre"].astype str == sel, "telefono"] = edit_telefono
-                prov_df.loc[prov_df["nombre"].astype str == sel, "direccion"] = edit_direccion
-                prov_df.loc[prov_df["nombre"].astype str == sel, "notas"] = edit_notas
+                prov_df.loc[prov_df["nombre"].astype(str) == sel, "email"] = edit_email
+                prov_df.loc[prov_df["nombre"].astype(str) == sel, "telefono"] = edit_telefono
+                prov_df.loc[prov_df["nombre"].astype(str) == sel, "direccion"] = edit_direccion
+                prov_df.loc[prov_df["nombre"].astype(str) == sel, "notas"] = edit_notas
                 guardar_proveedores(prov_df)
                 st.success("Proveedor modificado.")
                 go_to("proveedores")
