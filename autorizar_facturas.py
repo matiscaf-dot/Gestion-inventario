@@ -5,6 +5,19 @@ from datetime import datetime
 from core.facturas import normalizar_tabla
 from streamlit_app import cargar_datos, guardar_datos, registrar_historial
 
+# Funciones de sanitización
+def safe_int(x):
+    try:
+        return int(float(x))
+    except:
+        return 0
+
+def safe_float(x):
+    try:
+        return round(float(x), 2)
+    except:
+        return 0.0
+
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -54,12 +67,13 @@ def render():
                     "factura_id": factura_sel["id"],
                     "codigo_proveedor": str(row.get("codigo_proveedor", "")).strip(),
                     "descripcion_item": str(row.get("descripcion_item", "")).strip(),
-                    "cantidad_factura": int(row.get("cantidad_factura", 0)),
-                    "valor_unitario": float(row.get("valor_unitario", 0.0)),
-                    "valor_total": float(row.get("valor_total", 0.0)),
+                    "cantidad_factura": safe_int(row.get("cantidad_factura")),
+                    "valor_unitario": safe_float(row.get("valor_unitario")),
+                    "valor_total": safe_float(row.get("valor_total")),
                     "cantidad_real": row.get("cantidad_real", None),
-                    "precio_producto": float(row.get("precio_producto", 0.0))
+                    "precio_producto": safe_float(row.get("precio_producto"))
                 })
+
         
             # Insertar en inventario
             supabase.table("inventario").upsert(registros_inventario).execute()
