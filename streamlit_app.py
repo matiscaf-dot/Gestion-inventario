@@ -196,14 +196,18 @@ if opcion == "Productos":
 # SECCIÓN ENTRADAS
 # ==============================
 elif opcion == "Entradas":
-    st.title("➕ Registrar Entrada desde Factura PDF")
+    st.title("➕ Registrar Entrada desde Factura")
 
+    # --- Datos de cabecera ---
     numero = st.text_input("Número de factura")
     proveedor = st.text_input("Proveedor")
     fecha = st.date_input("Fecha", datetime.now().date())
+
+    # --- Opción 1: Subir factura en PDF ---
+    st.subheader("Subir factura en PDF")
     factura_file = st.file_uploader("Selecciona factura en PDF", type=["pdf"])
 
-    if factura_file is not None and st.button("Procesar Factura"):
+    if factura_file is not None and st.button("Procesar Factura PDF"):
         try:
             import re, uuid
 
@@ -274,11 +278,95 @@ elif opcion == "Entradas":
                     cantidad=p["cantidad"]
                 )
 
-            st.success("✅ Productos ingresados desde factura")
+            st.success("✅ Productos ingresados desde factura PDF")
             st.rerun()
 
         except Exception as e:
-            st.error(f"❌ Error al procesar factura: {e}")
+            st.error(f"❌ Error al procesar factura PDF: {e}")
+
+    st.divider()
+
+    # --- Opción 2: Capturar factura con cámara ---
+    st.subheader("Capturar factura con cámara")
+    foto = st.camera_input("📸 Toma una foto de la factura")
+
+    if foto is not None and st.button("Procesar Factura Foto"):
+        try:
+            import re, uuid
+            from PIL import Image
+            import pytesseract
+
+            safe_filename = f"{uuid.uuid4()}_captura.jpg"
+            supabase.storage.from_("facturas").upload(
+                safe_filename,
+                foto.getvalue()
+            )
+            url_publica = supabase.storage.from_("facturas").get_public_url(safe_filename)
+
+            factura = supabase.table("facturas").insert({
+                "numero": numero,
+                "proveedor": proveedor,
+                "fecha": fecha.isoformat(),
+                "archivo_url": url_publica
+            }).execute()
+            factura_id = factura.data[0]["id"]
+
+            # OCR para extraer texto de la foto
+            img = Image.open(foto)
+            texto = pytesseract.image_to_string(img, lang="spa")
+
+            productos = []
+            for line in texto.split("\n"):
+                parts = line.split()
+                if len(parts) >= 4 and parts[2].isdigit():
+                    codigo = parts[0]
+                    nombre = parts[1]
+                    cantidad = int(parts[2])
+                    try:
+                        precio_costo = float(parts[3].replace(",", "."))
+                    except:
+                        precio_costo = 0.0
+                    productos.append({
+                        "codigo": codigo,
+                        "nombre": nombre,
+                        "cantidad": cantidad,
+                        "precio_costo": precio_costo
+                    })
+
+            for p in productos:
+                supabase.table("factura_detalle").insert({
+                    "factura_id": factura_id,
+                    "codigo": p["codigo"],
+                    "nombre": p["nombre"],
+                    "cantidad": p["cantidad"],
+                    "precio_costo": p["precio_costo"]
+                }).execute()
+
+                supabase.table("inventario").upsert({
+                    "codigo": p["codigo"],
+                    "nombre": p["nombre"],
+                    "cantidad": p["cantidad"],
+                    "tipo_movimiento": "entrada",
+                    "descripcion": p["nombre"],
+                    "categoria": "sin_categoria",
+                    "precio_costo": p["precio_costo"],
+                    "fecha_ingreso": datetime.now().isoformat(),
+                    "proveedor": proveedor
+                }).execute()
+
+                registrar_historial(
+                    usuario=st.session_state["usuario"],
+                    tipo="entrada",
+                    codigo=p["codigo"],
+                    nombre=p["nombre"],
+                    cantidad=p["cantidad"]
+                )
+
+            st.success("✅ Productos ingresados desde factura Foto")
+            st.rerun()
+
+        except Exception as e:
+            st.error(f"❌ Error al procesar factura Foto: {e}")
 
 # SECCIÓN SALIDAS
 # ==============================
