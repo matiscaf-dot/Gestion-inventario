@@ -387,7 +387,7 @@ if st.session_state["pagina"] == "productos":
 
             guardar_datos(df)
         st.divider()
-    if st.session_state["rol"] == "bodeguero" or :
+    if st.session_state["rol"] == "bodeguero":
         st.subheader("Facturas")
         st.button("📄 Subir Factura", use_container_width=True, on_click=go_to, args=("subir_facturas",))
         st.button("✅ Autorizar Facturas", use_container_width=True, on_click=go_to, args=("autorizar_facturas",))
