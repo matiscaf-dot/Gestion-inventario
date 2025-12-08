@@ -40,57 +40,31 @@ def render():
         st.dataframe(df_prod[cols_validas])
 
         if st.button("Autorizar factura"):
-            df = cargar_datos()
-            nuevos_registros = []
-        
-            for _, row in df_prod.iterrows():
-                codigo = str(row.get("codigo_proveedor", "")).strip()
-                descripcion = str(row.get("descripcion_item", "")).strip()
-                cantidad = int(row.get("cantidad_factura", 0))
-                valor_unitario = float(row.get("valor_unitario", 0.0))
-        
-                registrar_historial(
-                    st.session_state["usuario"], "entrada",
-                    codigo, descripcion, cantidad,
-                    proveedor=factura_sel["proveedor"],
-                    nota=f"Factura {factura_sel['num_factura']} autorizada"
-                )
-        
-                # Actualizar inventario local
-                if codigo in df["codigo"].values:
-                    df.loc[df["codigo"] == codigo, "cantidad"] += cantidad
-                else:
-                    nueva_fila = pd.DataFrame([{
-                        "codigo": codigo,
-                        "nombre": descripcion,
-                        "descripcion": "",
-                        "categoria": "General",
-                        "cantidad": cantidad,
-                        "precio_costo": valor_unitario,
-                        "precio_venta": round(valor_unitario * 1.2, 2),
-                        "fecha_ingreso": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        "proveedor": factura_sel["proveedor"]
-                    }])
-                    df = pd.concat([df, nueva_fila], ignore_index=True)
-        
-                # Preparar registro para Supabase
-                nuevos_registros.append({
-                    "codigo": codigo,
-                    "nombre": descripcion,
-                    "cantidad": cantidad,
-                    "precio_costo": valor_unitario,
-                    "precio_venta": round(valor_unitario * 1.2, 2),
-                    "proveedor": factura_sel["proveedor"],
-                    "fecha_ingreso": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                })
-        
-            # Guardar inventario local
-            guardar_datos(df)
-        
-            # Actualizar inventario en Supabase
-            supabase.table("inventario").upsert(nuevos_registros).execute()
-        
-            # Cambiar estado de la factura
-            supabase.table("detalle_factura_tmp").update({"estado":"autorizada"}).eq("id", factura_sel["id"]).execute()
-        
-            st.success("Factura autorizada y stock actualizado en inventario.")
+        # Cargar productos asociados
+        productos = supabase.table("productos_tmp").select("*").eq("factura_id", factura_sel["id"]).execute().data
+        df_prod = pd.DataFrame(productos)
+    
+        if df_prod.empty:
+            st.error("❌ No se encontraron productos asociados a esta factura.")
+            st.stop()
+    
+        registros_inventario = []
+        for _, row in df_prod.iterrows():
+            registros_inventario.append({
+                "factura_id": factura_sel["id"],
+                "codigo_proveedor": str(row.get("codigo_proveedor", "")).strip(),
+                "descripcion_item": str(row.get("descripcion_item", "")).strip(),
+                "cantidad_factura": int(row.get("cantidad_factura", 0)),
+                "valor_unitario": float(row.get("valor_unitario", 0.0)),
+                "valor_total": float(row.get("valor_total", 0.0)),
+                "cantidad_real": row.get("cantidad_real", None),
+                "precio_producto": float(row.get("precio_producto", 0.0))
+            })
+    
+        # Insertar en inventario
+        supabase.table("inventario").upsert(registros_inventario).execute()
+    
+        # Actualizar estado de la factura
+        supabase.table("detalle_factura_tmp").update({"estado": "autorizada"}).eq("id", factura_sel["id"]).execute()
+    
+        st.success("✅ Factura autorizada y productos traspasados al inventario.")
