@@ -232,7 +232,7 @@ elif opcion == "Facturas":
     numero = st.text_input("Número de factura")
     proveedor = st.text_input("Proveedor")
     fecha = st.date_input("Fecha", datetime.now().date())
-    print("Hola2")
+    st.text("Hola2")
     factura_file = st.file_uploader("Selecciona factura en PDF", type=["pdf"])
 
     if factura_file is not None and st.button("Registrar Factura"):
