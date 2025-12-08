@@ -582,10 +582,14 @@ if st.session_state["pagina"] == "subir_facturas":
             # Mostrar resumen de la factura
             factura_info = {
                 "Proveedor": str(df_norm["proveedor"].iloc[0] or "").strip(),
-                "Nº Factura": str(df_norm["num_factura"].iloc[0] or "").strip(),
+                "num_actura": str(df_norm["num_factura"].iloc[0] or "").strip(),
                 "Fecha Emisión": str(df_norm["fecha_emision"].iloc[0] or "").strip(),
                 "Estado": "pendiente"
             }
+            
+            df_resumen = pd.DataFrame([factura_info])
+            st.subheader("🧾 Resumen de la Factura")
+            st.dataframe(df_resumen, use_container_width=True)
             factura_insert = supabase.table("detalle_factura_tmp").insert(factura_info).execute()
             factura_id = factura_insert.data[0]["id"]
 
