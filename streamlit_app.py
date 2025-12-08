@@ -365,3 +365,201 @@ if st.session_state["pagina"] == "salidas":
     cantidad = st.number_input("Cantidad a descontar", min_value=1, step=1, value=1)
     boleta_file = st.file_uploader("Subir boleta (opcional)", type=["pdf", "png", "jpg", "jpeg"])
     if st.button("✅ Registrar salida"):
+        if not codigo:
+            st.warning("Ingresa un código antes de registrar.")
+        else:
+            df_check = cargar_datos()
+            if str(codigo).strip() not in df_check["codigo"].astype(str).values:
+                st.error("❌ El producto no existe en inventario.")
+            else:
+                current_qty = int(df_check.loc[df_check["codigo"].astype(str) == str(codigo).strip(), "cantidad"].iloc[0])
+                if cantidad > current_qty:
+                    st.warning(f"⚠️ Stock insuficiente. Stock actual: {current_qty}")
+                else:
+                    proveedor_actual = df_check.loc[df_check["codigo"].astype(str) == str(codigo).strip(), "proveedor"].iloc[0] if "proveedor" in df_check.columns else ""
+                    registrar_movimiento("salida", codigo, "", int(cantidad),
+                                         usuario_actual=st.session_state.get("usuario"),
+                                         proveedor=proveedor_actual)
+                    if boleta_file:
+                        boleta_path = os.path.join(BOLETAS_DIR, boleta_file.name)
+                        with open(boleta_path, "wb") as f:
+                            f.write(boleta_file.getbuffer())
+                        st.session_state["boleta_subida"] = boleta_path
+                    st.success("Salida registrada correctamente.")
+                    go_to("salidas")
+
+    if st.button("⬅️ Volver al menú principal"):
+        go_to("menu")
+
+# ==============================
+# PROVEEDORES (solo admin)
+# ==============================
+if st.session_state["pagina"] == "proveedores":
+    if st.session_state["rol"] != "admin":
+        st.error("No tienes permiso para acceder a esta sección.")
+        st.stop()
+
+    st.title("📇 Gestión de Proveedores")
+    prov_df = cargar_proveedores()
+    st.subheader("Listado de proveedores")
+    st.dataframe(prov_df, use_container_width=True)
+
+    st.divider()
+    st.subheader("Agregar nuevo proveedor")
+    p_nombre = st.text_input("Nombre proveedor", key="prov_nombre")
+    p_contacto = st.text_input("Contacto", key="prov_contacto")
+    p_email = st.text_input("Email", key="prov_email")
+    p_telefono = st.text_input("Teléfono", key="prov_telefono")
+    p_direccion = st.text_input("Dirección", key="prov_direccion")
+    p_notas = st.text_area("Notas", key="prov_notas")
+
+    if st.button("➕ Agregar proveedor"):
+        if not p_nombre.strip():
+            st.warning("El nombre del proveedor es obligatorio.")
+        else:
+            prov_df = cargar_proveedores()
+            new_id = 1 if prov_df.empty else (
+                prov_df["id"].max() + 1
+                if "id" in prov_df.columns and pd.api.types.is_numeric_dtype(prov_df["id"])
+                else len(prov_df) + 1
+            )
+            prov_df = prov_df.append({
+                "id": new_id,
+                "nombre": p_nombre.strip(),
+                "contacto": p_contacto.strip(),
+                "email": p_email.strip(),
+                "telefono": p_telefono.strip(),
+                "direccion": p_direccion.strip(),
+                "notas": p_notas.strip()
+            }, ignore_index=True)
+            guardar_proveedores(prov_df)
+            st.success("Proveedor agregado correctamente.")
+            go_to("proveedores")
+
+    st.divider()
+    st.subheader("Modificar / Eliminar proveedor")
+    if not prov_df.empty:
+        sel = st.selectbox("Seleccionar proveedor", prov_df["nombre"].astype(str).tolist())
+        if sel:
+            prov_row = prov_df[prov_df["nombre"].astype(str) == sel].iloc[0]
+            edit_contacto = st.text_input("Contacto", value=prov_row.get("contacto", ""), key="edit_contacto")
+            edit_email = st.text_input("Email", value=prov_row.get("email", ""), key="edit_email")
+            edit_telefono = st.text_input("Teléfono", value=prov_row.get("telefono", ""), key="edit_telefono")
+            edit_direccion = st.text_input("Direccion", value=prov_row.get("direccion", ""), key="edit_direccion")
+            edit_notas = st.text_area("Notas", value=prov_row.get("notas", ""), key="edit_notas")
+
+            if st.button("💾 Guardar cambios proveedor"):
+                prov_df.loc[prov_df["nombre"].astype(str) == sel, "contacto"] = edit_contacto
+                prov_df.loc[prov_df["nombre"].astype(str) == sel, "email"] = edit_email
+                prov_df.loc[prov_df["nombre"].astype(str) == sel, "telefono"] = edit_telefono
+                prov_df.loc[prov_df["nombre"].astype(str) == sel, "direccion"] = edit_direccion
+                prov_df.loc[prov_df["nombre"].astype(str) == sel, "notas"] = edit_notas
+                guardar_proveedores(prov_df)
+                st.success("Proveedor modificado.")
+                go_to("proveedores")
+
+            if st.button("🗑️ Eliminar proveedor"):
+                prov_df = prov_df[prov_df["nombre"].astype(str) != sel]
+                guardar_proveedores(prov_df)
+                st.success("Proveedor eliminado.")
+                go_to("proveedores")
+    else:
+        st.info("No hay proveedores definidos todavía.")
+
+    if st.button("⬅️ Volver al menú principal"):
+        go_to("menu")
+
+# ==============================
+# HISTORIAL
+# ==============================
+if st.session_state["pagina"] == "historial":
+    st.title("📝 Historial de Movimientos")
+    if os.path.exists(HISTORIAL_FILE):
+        df_hist = pd.read_csv(HISTORIAL_FILE)
+        st.dataframe(df_hist, use_container_width=True)
+    else:
+        st.info("No hay movimientos registrados todavía.")
+    if st.button("⬅️ Volver al menú principal"):
+        go_to("menu")
+
+# ==============================
+# BACKUP
+# ==============================
+if st.session_state["pagina"] == "backup":
+    st.title("📦 Copia de Seguridad del Inventario")
+    df = cargar_datos()
+    prov_df = cargar_proveedores()
+    fecha = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    backup_name = f"backup_inventario_{fecha}.xlsx"
+    buffer = BytesIO()
+    try:
+        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+            df.to_excel(writer, sheet_name="productos", index=False)
+            prov_df.to_excel(writer, sheet_name="proveedores", index=False)
+        buffer.seek(0)
+        backup_path = os.path.join(BACKUPS_DIR, backup_name)
+        with open(backup_path, "wb") as f:
+            f.write(buffer.getvalue())
+        st.success(f"Copia de seguridad creada: {backup_name}")
+        st.download_button(
+            "📥 Descargar copia de seguridad",
+            data=buffer.getvalue(),
+            file_name=backup_name,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except Exception as e:
+        st.error(f"Error creando copia de seguridad: {e}")
+    if st.button("⬅️ Volver al menú principal"):
+        go_to("menu")
+
+# ==============================
+# CONFIGURACIÓN
+# ==============================
+if st.session_state["pagina"] == "configuracion":
+    if st.session_state["rol"] not in ["admin"]:
+        st.error("❌ No tienes permiso para acceder a esta sección.")
+        st.stop()
+    st.title("⚙️ Configuración del Sistema")
+    st.write("Descarga inventario y gestiona datos del sistema.")
+    df = cargar_datos()
+    prov_df = cargar_proveedores()
+    buffer = BytesIO()
+    try:
+        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+            df.to_excel(writer, sheet_name="productos", index=False)
+            prov_df.to_excel(writer, sheet_name="proveedores", index=False)
+        buffer.seek(0)
+        st.download_button(
+            "📥 Descargar Inventario (Excel)",
+            buffer.getvalue(),
+            "inventario.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    except Exception as e:
+        st.error(f"No se pudo preparar el archivo de descarga: {e}")
+    if st.button("⬅️ Volver al menú principal"):
+        go_to("menu")
+
+# ==============================
+# Subir facturas (página externa)
+# ==============================
+if st.session_state["pagina"] == "subir_facturas":
+    try:
+        import pages.subir_facturas as subir_facturas
+        subir_facturas.render()
+    except Exception as e:
+        st.error(f"No se pudo cargar la página de Subir Factura: {e}")
+    if st.button("⬅️ Volver al menú principal"):
+        go_to("menu")
+
+# ==============================
+# Autorizar facturas (página externa)
+# ==============================
+if st.session_state["pagina"] == "autorizar_facturas":
+    try:
+        import pages.autorizar_facturas as autorizar_facturas
+        autorizar_facturas.render()
+    except Exception as e:
+        st.error(f"No se pudo cargar la página de Autorizar Facturas: {e}")
+    if st.button("⬅️ Volver al menú principal"):
+        go_to("
