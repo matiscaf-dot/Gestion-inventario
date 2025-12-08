@@ -233,7 +233,7 @@ elif opcion == "Entradas":
             productos = []
             with pdfplumber.open(io.BytesIO(factura_file.getvalue())) as pdf:
                 st.text("Hola11")
-                for page_num, page in enumerate(pdf.pages, start1):
+                for page_num, page in enumerate(pdf.pages, start=1):
                     st.text("Hola12")
                     tables = page.extract_tables()
                     st.write(f"Página {page_num} → Tablas de tectadas: {len(tables)}")
