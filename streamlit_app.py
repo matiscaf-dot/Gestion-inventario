@@ -620,7 +620,6 @@ if st.session_state["pagina"] == "subir_facturas":
                     "codigo_proveedor": str(row.get("codigo_proveedor", "")).strip(),
                     "descripcion_item": str(row.get("descripcion_item", "")).strip(),
                     "cantidad_factura": safe_int(row.get("cantidad")),
-                    "cantidad_sugerida": safe_int(row.get("cantidad_final")),
                     "valor_unitario": safe_float(row.get("valor_unitario")),
                     "valor_total": safe_float(row.get("valor_tot")),
                     "cantidad_real": None
