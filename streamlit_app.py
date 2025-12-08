@@ -236,7 +236,7 @@ elif opcion == "Entradas":
                 for page_num, page in enumerate(pdf.pages, start1):
                     st.text("Hola12")
                     tables = page.extract_tables()
-                    st.write(f"Página {page_num} → Tablas de tectadas: {len(tables}")
+                    st.write(f"Página {page_num} → Tablas de tectadas: {len(tables)}")
                     for table in tables:
                         st.text("Hola13")
                         st.wrtie("Tabla detectada:", table)
