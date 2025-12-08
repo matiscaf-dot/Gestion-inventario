@@ -265,7 +265,6 @@ elif opcion == "Entradas":
             for p in productos:
                 st.text("Hola8")
                 supabase.table("factura_detalle").insert({
-                    "factura_id": factura_id,
                     "codigo": p["codigo"],
                     "nombre": p["nombre"],
                     "cantidad": p["cantidad"],
@@ -276,12 +275,8 @@ elif opcion == "Entradas":
                     "codigo": p["codigo"],
                     "nombre": p["nombre"],
                     "cantidad": p["cantidad"],
-                    "tipo_movimiento": "entrada",
                     "descripcion": p["nombre"],
-                    "categoria": "sin_categoria",
                     "precio_costo": p["precio_costo"],
-                    "fecha_ingreso": datetime.now().isoformat(),
-                    "proveedor": proveedor
                 }).execute()
                 st.text("Hlola8")
                 registrar_historial(
