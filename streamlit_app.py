@@ -271,7 +271,7 @@ elif opcion == "Facturas":
                     for table in tables:
                         for row in table:
                             # Esperamos filas tipo: [Codigo, Descripcion, Cantidad, Precio, ..., Valor]
-                            if row and len(row) >= 4:
+                            if row and len(row) >= 5:
                                 codigo = str(row[0]).strip()
                                 descripcion = str(row[1]).strip()
                                 try:
@@ -295,12 +295,20 @@ elif opcion == "Facturas":
                     "cantidad": p["cantidad"],
                     "precio_costo": p["precio_costo"]
                 }).execute()
-
+            
                 registrar_movimiento("entrada", p["codigo"], p["nombre"], p["cantidad"],
                                      usuario_actual=st.session_state["usuario"],
                                      precio_costo=p["precio_costo"])
-
+            
+            # ✅ Actualizar inventario en pantalla
+            df_inventario = cargar_datos()
+            st.subheader("Inventario actualizado")
+            st.dataframe(df_inventario, use_container_width=True)
+            
             st.success("✅ Factura registrada con productos ingresados al inventario")
+            
+            # 🔄 Refrescar toda la app para que se vea en otras secciones
+            st.rerun()
 
         except Exception as e:
             st.error(f"❌ Error al registrar factura: {e}")
