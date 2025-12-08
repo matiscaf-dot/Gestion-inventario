@@ -40,21 +40,23 @@ def render():
         st.dataframe(df_prod[cols_validas])
 
         if st.button("Autorizar factura"):
-            # Actualizar inventario
             df = cargar_datos()
+            nuevos_registros = []
+        
             for _, row in df_prod.iterrows():
                 codigo = str(row.get("codigo_proveedor", "")).strip()
                 descripcion = str(row.get("descripcion_item", "")).strip()
-                cantidad = int(row.get("cantidad_factura", 0))
+                cantidad = int(row.get("cantidad_sugerida", 0))
                 valor_unitario = float(row.get("valor_unitario", 0.0))
-            
+        
                 registrar_historial(
                     st.session_state["usuario"], "entrada",
                     codigo, descripcion, cantidad,
                     proveedor=factura_sel["proveedor"],
                     nota=f"Factura {factura_sel['num_factura']} autorizada"
                 )
-            
+        
+                # Actualizar inventario local
                 if codigo in df["codigo"].values:
                     df.loc[df["codigo"] == codigo, "cantidad"] += cantidad
                 else:
@@ -70,10 +72,25 @@ def render():
                         "proveedor": factura_sel["proveedor"]
                     }])
                     df = pd.concat([df, nueva_fila], ignore_index=True)
-            
+        
+                # Preparar registro para Supabase
+                nuevos_registros.append({
+                    "codigo": codigo,
+                    "nombre": descripcion,
+                    "cantidad": cantidad,
+                    "precio_costo": valor_unitario,
+                    "precio_venta": round(valor_unitario * 1.2, 2),
+                    "proveedor": factura_sel["proveedor"],
+                    "fecha_ingreso": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                })
+        
+            # Guardar inventario local
             guardar_datos(df)
-
-            # Cambiar estado a autorizada
+        
+            # Actualizar inventario en Supabase
+            supabase.table("inventario").upsert(nuevos_registros).execute()
+        
+            # Cambiar estado de la factura
             supabase.table("detalle_factura_tmp").update({"estado":"autorizada"}).eq("id", factura_sel["id"]).execute()
-
-            st.success("Factura autorizada y stock actualizado.")
+        
+            st.success("Factura autorizada y stock actualizado en inventario.")
