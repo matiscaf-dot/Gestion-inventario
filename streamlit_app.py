@@ -576,12 +576,59 @@ if st.session_state["pagina"] == "subir_facturas":
                 "fecha_emision": str(df_norm["fecha_emision"].iloc[0] or "").strip(),
                 "estado": "pendiente",
             }
-            
-            df_resumen = pd.DataFrame([factura_info])
-            st.subheader("🧾 Resumen de la Factura")
-            st.dataframe(df_resumen, use_container_width=True)
-            factura_insert = supabase.table("detalle_factura_tmp").insert(factura_info).execute()
-            factura_id = factura_insert.data[0]["id"]
+        
+            # Verificar si ya existe la factura en el sistema
+            factura_existente = supabase.table("detalle_factura_tmp").select("id").eq("num_factura", factura_info["num_factura"]).execute()
+        
+            if factura_existente.data and len(factura_existente.data) > 0:
+                st.error(f"❌ La factura N° {factura_info['num_factura']} ya existe en el sistema. No se puede volver a subir.")
+                st.stop()
+            else:
+                # Insertar nueva factura
+                df_resumen = pd.DataFrame([factura_info])
+                st.subheader("🧾 Resumen de la Factura")
+                st.dataframe(df_resumen, use_container_width=True)
+        
+                factura_insert = supabase.table("detalle_factura_tmp").insert(factura_info).execute()
+                factura_id = factura_insert.data[0]["id"]
+        
+                # Asegurar códigos de proveedor
+                df_norm["codigo_proveedor"] = df_norm["codigo_proveedor"].fillna("")
+                for idx, row in df_norm.iterrows():
+                    if row["codigo_proveedor"] in [None, "", " "]:
+                        correlativo = str(idx + 1).zfill(4)
+                        df_norm.at[idx, "codigo_proveedor"] = f"GEN-{factura_id}-{correlativo}"
+        
+                # Funciones de sanitización
+                def safe_int(x):
+                    try:
+                        return int(float(x))
+                    except:
+                        return 0
+        
+                def safe_float(x):
+                    try:
+                        return round(float(str(x).replace(",", ".").replace(" ", "").strip()), 2)
+                    except:
+                        return 0.0
+        
+                # Insertar productos
+                productos = []
+                for _, row in df_norm.iterrows():
+                    productos.append({
+                        "factura_id": factura_id,
+                        "codigo_proveedor": str(row.get("codigo_proveedor", "")).strip(),
+                        "descripcion_item": str(row.get("descripcion_item", "")).strip(),
+                        "cantidad_factura": safe_int(row.get("cantidad")),
+                        "valor_unitario": safe_float(row.get("valor_unitario")),
+                        "valor_total": safe_float(row.get("valor_tot")),
+                        "cantidad_real": None,
+                        "precio_producto": None
+                    })
+        
+                st.write("Productos a insertar:", productos)
+                supabase.table("productos_tmp").insert(productos).execute()
+                st.success("Factura enviada a bodega exitosamente.")
 
             # Asegurar códigos de proveedor
             df_norm["codigo_proveedor"] = df_norm["codigo_proveedor"].fillna("")
