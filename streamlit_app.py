@@ -239,7 +239,7 @@ elif opcion == "Entradas":
                     st.write(f"Página {page_num} → Tablas de tectadas: {len(tables)}")
                     for table in tables:
                         st.text("Hola13")
-                        st.wrtie("Tabla detectada:", table)
+                        st.write("Tabla detectada:", table)
                         for row in table:
                             st.write("Fila:",row)
                             st.text("Hola14")
