@@ -581,10 +581,10 @@ if st.session_state["pagina"] == "subir_facturas":
         if st.button("Enviar a Bodega"):
             # Mostrar resumen de la factura
             factura_info = {
-                "Proveedor": str(df_norm["proveedor"].iloc[0] or "").strip(),
-                "num_actura": str(df_norm["num_factura"].iloc[0] or "").strip(),
-                "Fecha Emisión": str(df_norm["fecha_emision"].iloc[0] or "").strip(),
-                "Estado": "pendiente"
+                "proveedor": str(df_norm["proveedor"].iloc[0] or "").strip(),
+                "num_factura": str(df_norm["num_factura"].iloc[0] or "").strip(),
+                "fecha_emision": str(df_norm["fecha_emision"].iloc[0] or "").strip(),
+                "estado": "pendiente"
             }
             
             df_resumen = pd.DataFrame([factura_info])
