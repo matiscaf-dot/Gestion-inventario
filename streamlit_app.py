@@ -256,6 +256,7 @@ elif opcion == "Entradas":
                                     "cantidad": cantidad,
                                     "precio_costo": precio_costo
                                 })
+            st.text(productos)
             st.text("Hola7")
             for p in productos:
                 st.text("Hola8")
