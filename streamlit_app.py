@@ -207,93 +207,67 @@ elif opcion == "Entradas":
     st.subheader("Subir factura en PDF")
     factura_file = st.file_uploader("Selecciona factura en PDF", type=["pdf"])
     st.text("Hola2")
-    if factura_file is not None and st.button("Procesar Factura PDF"):
-        st.text("Hola3")
-        try:
-            st.text("Hola4")
-            import re, uuid
+    productos = []
 
-            safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', factura_file.name)
-            unique_filename = f"{uuid.uuid4()}_{safe_filename}"
+    # 1. Intentar con pdfplumber
+    with pdfplumber.open(io.BytesIO(factura_file.getvalue())) as pdf:
+        for page_num, page in enumerate(pdf.pages, start=1):
+            tables = page.extract_tables()
+            st.write(f"Página {page_num} → Tablas detectadas: {len(tables)}")
+            for table in tables:
+                st.write("Tabla detectada:", table)
+                for row in table:
+                    st.write("Fila:", row)
+                    if row and len(row) >= 4:
+                        codigo = str(row[0]).strip()
+                        descripcion = str(row[1]).strip()
+                        try:
+                            cantidad = int(str(row[2]).replace(".", "").replace(",", ""))
+                            precio_costo = float(str(row[3]).replace(".", "").replace(",", "."))
+                        except Exception as e:
+                            st.write("Error parseando fila:", e)
+                            continue
+                        productos.append({
+                            "codigo": codigo,
+                            "nombre": descripcion,
+                            "cantidad": cantidad,
+                            "precio_costo": precio_costo
+                        })
+    
+    # 2. Si no se detectaron productos, usar OCR como respaldo
+    if not productos:
+        st.warning("⚠️ No se detectaron productos con pdfplumber. Intentando con OCR...")
+        from PIL import Image
+        import pytesseract
+    
+        img = Image.open(io.BytesIO(factura_file.getvalue()))
+        texto = pytesseract.image_to_string(img, lang="spa")
+        st.text_area("Texto detectado por OCR", texto, height=200)
+    
+        for line in texto.split("\n"):
+            parts = line.split()
+            if len(parts) >= 4 and parts[2].isdigit():
+                codigo = parts[0]
+                nombre = parts[1]
+                cantidad = int(parts[2])
+                try:
+                    precio_costo = float(parts[3].replace(",", "."))
+                except:
+                    precio_costo = 0.0
+                productos.append({
+                    "codigo": codigo,
+                    "nombre": nombre,
+                    "cantidad": cantidad,
+                    "precio_costo": precio_costo
+                })
+    
+    # 3. Mostrar productos detectados
+    if productos:
+        st.success(f"✅ Productos detectados: {len(productos)}")
+        st.dataframe(productos)
+    else:
+        st.error("❌ No se detectaron productos válidos en la factura.")
 
-            supabase.storage.from_("facturas").upload(
-                unique_filename,
-                factura_file.getvalue()
-            )
-            url_publica = supabase.storage.from_("facturas").get_public_url(unique_filename)
-            st.text("Hola5")
-            factura = supabase.table("facturas").insert({
-                "numero": numero,
-                "proveedor": proveedor,
-                "fecha": fecha.isoformat(),
-                "archivo_url": url_publica
-            }).execute()
-            factura_id = factura.data[0]["id"]
-
-            productos = []
-            with pdfplumber.open(io.BytesIO(factura_file.getvalue())) as pdf:
-                st.text("Hola11")
-                for page_num, page in enumerate(pdf.pages, start=1):
-                    st.text("Hola12")
-                    tables = page.extract_tables()
-                    st.write(f"Página {page_num} → Tablas de tectadas: {len(tables)}")
-                    for table in tables:
-                        st.text("Hola13")
-                        st.write("Tabla detectada:", table)
-                        for row in table:
-                            st.write("Fila:",row)
-                            st.text("Hola14")
-                            if row and len(row) >= 3:
-                                st.text("Hola15")
-                                codigo = str(row[0]).strip()
-                                descripcion = str(row[1]).strip()
-                                try:
-                                    st.text("Hola16")
-                                    cantidad = int(str(row[2]).replace(".", "").replace(",", ""))
-                                    precio_costo = float(str(row[3]).replace(".", "").replace(",", "."))
-                                except Exception as e:
-                                    st.write("Error parseando fila:",e)
-                                    continue
-                                productos.append({
-                                    "codigo": codigo,
-                                    "nombre": descripcion,
-                                    "cantidad": cantidad,
-                                    "precio_costo": precio_costo
-                                })
-            st.text(productos)
-            st.text("Hola7")
-            for p in productos:
-                st.text("Hola8")
-                supabase.table("factura_detalle").insert({
-                    "codigo": p["codigo"],
-                    "nombre": p["nombre"],
-                    "cantidad": p["cantidad"],
-                    "precio_costo": p["precio_costo"]
-                }).execute()
-                st.text("Hola9")
-                supabase.table("inventario").upsert({
-                    "codigo": p["codigo"],
-                    "nombre": p["nombre"],
-                    "cantidad": p["cantidad"],
-                    "descripcion": p["nombre"],
-                    "precio_costo": p["precio_costo"],
-                }).execute()
-                st.text("Hlola8")
-                registrar_historial(
-                    usuario=st.session_state["usuario"],
-                    tipo="entrada",
-                    codigo=p["codigo"],
-                    nombre=p["nombre"],
-                    cantidad=p["cantidad"]
-                )
-            st.text(productos)
-            st.success("✅ Productos ingresados desde factura PDF")
-            st.rerun()
-            st.text(productos)
-        except Exception as e:
-            st.error(f"❌ Error al procesar factura PDF: {e}")
-
-    st.divider()
 
     # --- Opción 2: Capturar factura con cámara ---
     st.subheader("Capturar factura con cámara")
