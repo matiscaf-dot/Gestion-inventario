@@ -271,7 +271,7 @@ elif opcion == "Entradas":
                     "fecha_ingreso": datetime.now().isoformat(),
                     "proveedor": proveedor
                 }).execute()
-            st.text("Hlola8")
+                st.text("Hlola8")
                 registrar_historial(
                     usuario=st.session_state["usuario"],
                     tipo="entrada",
