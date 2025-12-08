@@ -283,7 +283,12 @@ elif opcion == "Facturas":
                                     "codigo": codigo,
                                     "nombre": descripcion,
                                     "cantidad": cantidad,
-                                    "precio_costo": precio_costo
+                                    "Entrada": "Entrada",
+                                    "descripción": descripcion,
+                                    "categoria1": "categoria1",
+                                    "precio_costo": precio_costo,
+                                    "fecha_ingreso":date.today(),
+                                    "proveedor":"proveedor"
                                 })
 
             # 4. Insertar detalle y actualizar inventario
@@ -293,10 +298,10 @@ elif opcion == "Facturas":
                     "nombre": p["nombre"],
                     "cantidad": p["cantidad"],
                     "tipo_movimiento": p["Entrada"],
-                    "descripcion":descripcion,
+                    "descripcion":p["descripcion"],
                     "categoria":p["categoria1"],
                     "precio_costo": p["precio_costo"],
-                    "fecha_ingreso": date.today(),
+                    "fecha_ingreso": p["fecha_ingreso"],
                     "proveedor":p["proveedor"]
                 }).execute()
             
