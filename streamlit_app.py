@@ -293,7 +293,7 @@ elif opcion == "Facturas":
                     "nombre": p["nombre"],
                     "cantidad": p["cantidad"],
                     "tipo_movimiento": p["Entrada"],
-                    "descripcion",descripcion,
+                    "descripcion":descripcion,
                     "categoria":p["categoria1"],
                     "precio_costo": p["precio_costo"],
                     "fecha_ingreso": date.today(),
