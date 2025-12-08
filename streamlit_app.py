@@ -232,7 +232,7 @@ elif opcion == "Entradas":
 
             productos = []
             with pdfplumber.open(io.BytesIO(factura_file.getvalue())) as pdf:
-                st.txt("Hola11")
+                st.text("Hola11")
                 for page in pdf.pages:
                     st.text("Hola12")
                     tables = page.extract_tables()
