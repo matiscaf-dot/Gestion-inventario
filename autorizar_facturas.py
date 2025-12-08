@@ -16,7 +16,7 @@ def safe_float(x):
     try:
         return round(float(x), 2)
     except:
-        return 0.0
+        return 0
 
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
