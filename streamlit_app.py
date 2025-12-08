@@ -196,40 +196,90 @@ if opcion == "Productos":
 # SECCIÓN ENTRADAS
 # ==============================
 elif opcion == "Entradas":
-    st.title("➕ Registrar Entrada de Inventario")
+    st.title("➕ Registrar Entrada desde Factura PDF")
 
-    # Subir factura en PDF
+    numero = st.text_input("Número de factura")
+    proveedor = st.text_input("Proveedor")
+    fecha = st.date_input("Fecha", datetime.now().date())
     factura_file = st.file_uploader("Selecciona factura en PDF", type=["pdf"])
 
-    if factura_file is not None:
-        st.info(f"Archivo cargado: {factura_file.name}")
-
-        if st.button("📤 Subir a Supabase"):
+    if factura_file is not None and st.button("Procesar Factura"):
+        try:
             import re, uuid
 
-            # Normalizar nombre de archivo
             safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', factura_file.name)
             unique_filename = f"{uuid.uuid4()}_{safe_filename}"
 
-            try:
-                # Subir archivo al bucket facturas
-                supabase.storage.from_("facturas").upload(
-                    unique_filename,
-                    factura_file.getvalue()
+            supabase.storage.from_("facturas").upload(
+                unique_filename,
+                factura_file.getvalue()
+            )
+            url_publica = supabase.storage.from_("facturas").get_public_url(unique_filename)
+
+            factura = supabase.table("facturas").insert({
+                "numero": numero,
+                "proveedor": proveedor,
+                "fecha": fecha.isoformat(),
+                "archivo_url": url_publica
+            }).execute()
+            factura_id = factura.data[0]["id"]
+
+            productos = []
+            with pdfplumber.open(io.BytesIO(factura_file.getvalue())) as pdf:
+                for page in pdf.pages:
+                    tables = page.extract_tables()
+                    for table in tables:
+                        for row in table:
+                            if row and len(row) >= 4:
+                                codigo = str(row[0]).strip()
+                                descripcion = str(row[1]).strip()
+                                try:
+                                    cantidad = int(str(row[2]).replace(".", "").replace(",", ""))
+                                    precio_costo = float(str(row[3]).replace(".", "").replace(",", "."))
+                                except:
+                                    continue
+                                productos.append({
+                                    "codigo": codigo,
+                                    "nombre": descripcion,
+                                    "cantidad": cantidad,
+                                    "precio_costo": precio_costo
+                                })
+
+            for p in productos:
+                supabase.table("factura_detalle").insert({
+                    "factura_id": factura_id,
+                    "codigo": p["codigo"],
+                    "nombre": p["nombre"],
+                    "cantidad": p["cantidad"],
+                    "precio_costo": p["precio_costo"]
+                }).execute()
+
+                supabase.table("inventario").upsert({
+                    "codigo": p["codigo"],
+                    "nombre": p["nombre"],
+                    "cantidad": p["cantidad"],
+                    "tipo_movimiento": "entrada",
+                    "descripcion": p["nombre"],
+                    "categoria": "sin_categoria",
+                    "precio_costo": p["precio_costo"],
+                    "fecha_ingreso": datetime.now().isoformat(),
+                    "proveedor": proveedor
+                }).execute()
+
+                registrar_historial(
+                    usuario=st.session_state["usuario"],
+                    tipo="entrada",
+                    codigo=p["codigo"],
+                    nombre=p["nombre"],
+                    cantidad=p["cantidad"]
                 )
 
-                # Obtener URL pública
-                url_publica = supabase.storage.from_("facturas").get_public_url(unique_filename)
+            st.success("✅ Productos ingresados desde factura")
+            st.rerun()
 
-                st.success(f"✅ Archivo subido correctamente a Supabase\nURL pública: {url_publica}")
+        except Exception as e:
+            st.error(f"❌ Error al procesar factura: {e}")
 
-                # Aquí puedes continuar con la lógica de registrar cabecera y extraer productos
-                # supabase.table("facturas").insert({...})
-
-            except Exception as e:
-                st.error(f"❌ Error al subir archivo: {e}")
-
-# ==============================
 # SECCIÓN SALIDAS
 # ==============================
 elif opcion == "Salidas":
