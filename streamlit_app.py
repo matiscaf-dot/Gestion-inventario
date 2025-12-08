@@ -196,89 +196,60 @@ if opcion == "Productos":
 # SECCIÓN ENTRADAS
 # ==============================
 elif opcion == "Entradas":
-    st.title("➕ Registrar Entrada desde Factura PDF")
+    st.title("➕ Registrar Entrada de Inventario")
 
-    numero = st.text_input("Número de factura")
-    proveedor = st.text_input("Proveedor")
-    fecha = st.date_input("Fecha", datetime.now().date())
+    # --- Opción 1: Subir factura en PDF ---
+    st.subheader("Subir factura en PDF")
     factura_file = st.file_uploader("Selecciona factura en PDF", type=["pdf"])
+    # aquí mantienes tu lógica actual de procesar PDF y registrar productos...
 
-    if factura_file is not None and st.button("Procesar Factura"):
-        try:
-            import re, uuid
+    st.divider()
 
-            safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', factura_file.name)
-            unique_filename = f"{uuid.uuid4()}_{safe_filename}"
+    # --- Opción 2: Capturar factura con cámara ---
+    st.subheader("Capturar factura con cámara")
+    foto = st.camera_input("Toma una foto de la factura")
 
-            supabase.storage.from_("facturas").upload(
-                unique_filename,
-                factura_file.getvalue()
-            )
-            url_publica = supabase.storage.from_("facturas").get_public_url(unique_filename)
+    if foto is not None:
+        st.success("✅ Foto capturada")
 
-            factura = supabase.table("facturas").insert({
-                "numero": numero,
-                "proveedor": proveedor,
-                "fecha": fecha.isoformat(),
-                "archivo_url": url_publica
-            }).execute()
-            factura_id = factura.data[0]["id"]
+        from PIL import Image
+        import pytesseract
 
-            productos = []
-            with pdfplumber.open(io.BytesIO(factura_file.getvalue())) as pdf:
-                for page in pdf.pages:
-                    tables = page.extract_tables()
-                    for table in tables:
-                        for row in table:
-                            if row and len(row) >= 4:
-                                codigo = str(row[0]).strip()
-                                descripcion = str(row[1]).strip()
-                                try:
-                                    cantidad = int(str(row[2]).replace(".", "").replace(",", ""))
-                                    precio_costo = float(str(row[3]).replace(".", "").replace(",", "."))
-                                except:
-                                    continue
-                                productos.append({
-                                    "codigo": codigo,
-                                    "nombre": descripcion,
-                                    "cantidad": cantidad,
-                                    "precio_costo": precio_costo
-                                })
+        img = Image.open(foto)
+        texto = pytesseract.image_to_string(img, lang="spa")
 
-            for p in productos:
-                supabase.table("factura_detalle").insert({
-                    "factura_id": factura_id,
-                    "codigo": p["codigo"],
-                    "nombre": p["nombre"],
-                    "cantidad": p["cantidad"],
-                    "precio_costo": p["precio_costo"]
-                }).execute()
+        st.text_area("Texto detectado en la factura", texto, height=200)
 
-                supabase.table("inventario").upsert({
-                    "codigo": p["codigo"],
-                    "nombre": p["nombre"],
-                    "cantidad": p["cantidad"],
-                    "tipo_movimiento": "entrada",
-                    "descripcion": p["nombre"],
-                    "categoria": "sin_categoria",
-                    "precio_costo": p["precio_costo"],
-                    "fecha_ingreso": datetime.now().isoformat(),
-                    "proveedor": proveedor
-                }).execute()
+        # Aquí puedes aplicar la misma lógica de parseo que usas con PDF
+        productos = []
+        for line in texto.split("\n"):
+            parts = line.split()
+            if len(parts) >= 4 and parts[2].isdigit():
+                codigo = parts[0]
+                nombre = parts[1]
+                cantidad = int(parts[2])
+                try:
+                    precio_costo = float(parts[3].replace(",", "."))
+                except:
+                    precio_costo = 0.0
+                productos.append({
+                    "codigo": codigo,
+                    "nombre": nombre,
+                    "cantidad": cantidad,
+                    "precio_costo": precio_costo
+                })
 
-                registrar_historial(
-                    usuario=st.session_state["usuario"],
-                    tipo="entrada",
-                    codigo=p["codigo"],
-                    nombre=p["nombre"],
-                    cantidad=p["cantidad"]
-                )
+        if productos:
+            st.write("Productos detectados:")
+            st.dataframe(productos)
 
-            st.success("✅ Productos ingresados desde factura")
-            st.rerun()
+            if st.button("Registrar productos desde foto"):
+                for p in productos:
+                    registrar_movimiento("entrada", p["codigo"], p["nombre"], p["cantidad"],
+                                         usuario_actual=st.session_state["usuario"],
+                                         precio_costo=p["precio_costo"])
+                st.success("✅ Productos registrados en inventario")
 
-        except Exception as e:
-            st.error(f"❌ Error al procesar factura: {e}")
 # ==============================
 # SECCIÓN SALIDAS
 # ==============================
