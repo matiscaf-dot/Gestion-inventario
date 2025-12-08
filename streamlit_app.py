@@ -287,10 +287,10 @@ elif opcion == "Entradas":
                     nombre=p["nombre"],
                     cantidad=p["cantidad"]
                 )
-
+            st.text(productos)
             st.success("✅ Productos ingresados desde factura PDF")
             st.rerun()
-
+            
         except Exception as e:
             st.error(f"❌ Error al procesar factura PDF: {e}")
 
