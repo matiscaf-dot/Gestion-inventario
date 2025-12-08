@@ -543,14 +543,79 @@ if st.session_state["pagina"] == "configuracion":
 # ==============================
 # Subir facturas (página externa)
 # ==============================
+# ==============================
+# Subir facturas (solo admin)
+# ==============================
 if st.session_state["pagina"] == "subir_facturas":
-    try:
-        import pages.subir_facturas as subir_facturas
-        subir_facturas.render()
-    except Exception as e:
-        st.error(f"No se pudo cargar la página de Subir Factura: {e}")
+    if st.session_state["rol"] != "admin":
+        st.error("❌ No tienes permiso para acceder a esta sección.")
+        st.stop()
+
+    import tempfile
+    from supabase import create_client
+    from core.facturas import procesar_factura, normalizar_tabla
+
+    # Conexión a Supabase
+    SUPABASE_URL = st.secrets["SUPABASE_URL"]
+    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+    st.title("📄 Cargar Factura")
+
+    uploaded_file = st.file_uploader("Sube archivo PDF", type=["pdf"])
+
+    if uploaded_file is not None:
+        # Guardar temporalmente para enviarlo a tu parser
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp.write(uploaded_file.read())
+            pdf_path = tmp.name
+
+        # 1) Procesar factura con tu código
+        df_raw = procesar_factura(pdf_path)
+        df_norm = normalizar_tabla(df_raw)
+
+        st.subheader("Productos identificados")
+        st.dataframe(df_norm[["descripcion_item", "cantidad_final", "valor_unitario"]])
+
+        # 2) Botón para enviar a bodega
+        if st.button("Enviar a Bodega"):
+            factura_info = {
+                "proveedor": df_norm["proveedor"].iloc[0],
+                "num_factura": df_norm["num_factura"].iloc[0],
+                "fecha_emision": df_norm["fecha_emision"].iloc[0],
+                "estado": "pendiente"
+            }
+
+            factura_insert = supabase.table("detalle_factura_tmp").insert(factura_info).execute()
+            factura_id = factura_insert.data[0]["id"]
+
+            # Asegurar códigos de proveedor
+            df_norm["codigo_proveedor"] = df_norm["codigo_proveedor"].fillna("")
+            for idx, row in df_norm.iterrows():
+                if row["codigo_proveedor"] in [None, "", " "]:
+                    correlativo = str(idx + 1).zfill(4)
+                    df_norm.at[idx, "codigo_proveedor"] = f"GEN-{factura_id}-{correlativo}"
+
+            # Insertar productos
+            productos = []
+            for _, row in df_norm.iterrows():
+                productos.append({
+                    "factura_id": factura_id,
+                    "codigo_proveedor": row["codigo_proveedor"],
+                    "descripcion_item": row["descripcion_item"],
+                    "cantidad_factura": int(row["cantidad"]),
+                    "cantidad_sugerida": int(row["cantidad_final"]),
+                    "valor_unitario": float(row["valor_unitario"]),
+                    "valor_total": float(row["valor_tot"]),
+                    "cantidad_real": None
+                })
+
+            supabase.table("productos_tmp").insert(productos).execute()
+            st.success("Factura enviada a bodega exitosamente.")
+
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
+
 
 # ==============================
 # Autorizar facturas (página externa)
