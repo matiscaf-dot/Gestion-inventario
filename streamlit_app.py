@@ -265,14 +265,14 @@ elif opcion == "Entradas":
             for p in productos:
                 st.text("Hola8")
                 supabase.table("factura_detalle").insert({
-                    "factura_id": factura_id,
+                    "factura_id": 0,
                     "codigo": p["codigo"],
                     "nombre": p["nombre"],
                     "cantidad": p["cantidad"],
                     "precio_costo": p["precio_costo"]
                 }).execute()
                 st.text("Hola9")
-                supabase.table("inventario").upsert({
+                supabase.table("inventario").insert({
                     "codigo": p["codigo"],
                     "nombre": p["nombre"],
                     "cantidad": p["cantidad"],
