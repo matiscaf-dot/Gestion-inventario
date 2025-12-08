@@ -291,24 +291,40 @@ elif opcion == "Facturas":
                                     "proveedor":"proveedor"
                                 })
 
+            from datetime import datetime
+
             # 4. Insertar detalle y actualizar inventario
             for p in productos:
-                supabase.table("inventario").insert({
+                # Insertar en factura_detalle
+                supabase.table("factura_detalle").insert({
+                    "factura_id": factura_id,
                     "codigo": p["codigo"],
                     "nombre": p["nombre"],
                     "cantidad": p["cantidad"],
-                    "tipo_movimiento": p["Entrada"],
-                    "descripcion":p["descripcion"],
-                    "categoria":p["categoria1"],
-                    "precio_costo": p["precio_costo"],
-                    "fecha_ingreso": p["fecha_ingreso"],
-                    "proveedor":p["proveedor"]
+                    "precio_costo": p["precio_costo"]
                 }).execute()
             
-                registrar_movimiento("entrada", p["codigo"], p["nombre"], p["cantidad"],
-                                     usuario_actual=st.session_state["usuario"],
-                                     precio_costo=p["precio_costo"])
+                # Insertar en inventario con todos los campos
+                supabase.table("inventario").upsert({
+                    "codigo": p["codigo"],
+                    "nombre": p["nombre"],
+                    "cantidad": p["cantidad"],
+                    "tipo_movimiento": "entrada",
+                    "descripcion": p["nombre"],  # puedes ajustar si tienes otra fuente
+                    "categoria": "sin_categoria",  # temporal hasta que definas categorías
+                    "precio_costo": p["precio_costo"],
+                    "fecha_ingreso": datetime.now().isoformat(),
+                    "proveedor": proveedor
+                }).execute()
             
+                # Registrar en historial
+                registrar_historial(
+                    usuario=st.session_state["usuario"],
+                    tipo="entrada",
+                    codigo=p["codigo"],
+                    nombre=p["nombre"],
+                    cantidad=p["cantidad"]
+                )
             # ✅ Actualizar inventario en pantalla
             df_inventario = cargar_datos()
             st.subheader("Inventario actualizado")
