@@ -622,7 +622,7 @@ if st.session_state["pagina"] == "subir_facturas":
                     "cantidad_factura": safe_int(row.get("cantidad")),
                     "valor_unitario": safe_float(row.get("valor_unitario")),
                     "valor_total": safe_float(row.get("valor_tot")),
-                    "cantidad_real": None
+                    "cantidad_real": None,
                     "precio_producto": None
                 })
 
