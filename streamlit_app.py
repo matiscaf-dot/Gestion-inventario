@@ -623,6 +623,7 @@ if st.session_state["pagina"] == "subir_facturas":
                     "valor_unitario": safe_float(row.get("valor_unitario")),
                     "valor_total": safe_float(row.get("valor_tot")),
                     "cantidad_real": None
+                    "precio_producto": None
                 })
 
             st.write("Productos a insertar:", productos)
