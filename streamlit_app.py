@@ -322,7 +322,6 @@ if st.session_state["pagina"] == "productos":
     st.divider()
     if st.session_state["rol"] == "bodeguero":
         st.subheader("Facturas")
-        st.button("📄 Subir Factura", use_container_width=True, on_click=go_to, args=("subir_facturas",))
         st.button("✅ Autorizar Facturas", use_container_width=True, on_click=go_to, args=("autorizar_facturas",))
 
     if st.button("⬅️ Volver al menú principal"):
@@ -345,12 +344,10 @@ if st.session_state["pagina"] == "entradas":
     prov_options = [""] + prov_df["nombre"].astype(str).tolist()
     proveedor_sel = st.selectbox("Proveedor asociado (opcional)", prov_options)
     nuevo_proveedor_txt = st.text_input("O crea nuevo proveedor (nombre) - opcional")
-    factura_file = st.file_uploader("Subir factura en PDF", type=["pdf"])
-    if factura_file is not None and st.button("Procesar Factura PDF"):
-        # ... lógica de pdfplumber/OCR
-        pass
+
     if st.button("✅ Registrar entrada"):
         # ... lógica de registrar_movimiento
+        st.button("✅ Autorizar Facturas", use_container_width=True, on_click=go_to, args=("autorizar_facturas",))
         pass
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
