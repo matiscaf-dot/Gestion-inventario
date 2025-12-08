@@ -343,7 +343,7 @@ elif opcion == "Entradas":
                 }).execute()
 
                 supabase.table("inventario").upsert({
-                    "codigo": p["codigo"],
+                    "codigo1": p["codigo"],
                     "nombre": p["nombre"],
                     "cantidad": p["cantidad"],
                     "tipo_movimiento": "entrada",
