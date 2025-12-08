@@ -232,14 +232,20 @@ elif opcion == "Entradas":
 
             productos = []
             with pdfplumber.open(io.BytesIO(factura_file.getvalue())) as pdf:
+                st.txt("Hola11")
                 for page in pdf.pages:
+                    st.text("Hola12")
                     tables = page.extract_tables()
                     for table in tables:
+                        st.text("Hola13")
                         for row in table:
+                            st.text("Hola14")
                             if row and len(row) >= 4:
+                                st.text("Hola15")
                                 codigo = str(row[0]).strip()
                                 descripcion = str(row[1]).strip()
                                 try:
+                                    st.text("Hola16")
                                     cantidad = int(str(row[2]).replace(".", "").replace(",", ""))
                                     precio_costo = float(str(row[3]).replace(".", "").replace(",", "."))
                                 except:
