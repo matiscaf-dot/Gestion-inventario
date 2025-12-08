@@ -288,12 +288,16 @@ elif opcion == "Facturas":
 
             # 4. Insertar detalle y actualizar inventario
             for p in productos:
-                supabase.table("factura_detalle").insert({
-                    "factura_id": factura_id,
+                supabase.table("inventario").insert({
                     "codigo": p["codigo"],
                     "nombre": p["nombre"],
                     "cantidad": p["cantidad"],
-                    "precio_costo": p["precio_costo"]
+                    "tipo_movimiento": p["Entrada"],
+                    "descripcion",descripcion,
+                    "categoria":p["categoria1"],
+                    "precio_costo": p["precio_costo"],
+                    "fecha_ingreso": date.today(),
+                    "proveedor":p["proveedor"]
                 }).execute()
             
                 registrar_movimiento("entrada", p["codigo"], p["nombre"], p["cantidad"],
