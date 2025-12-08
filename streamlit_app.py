@@ -562,4 +562,4 @@ if st.session_state["pagina"] == "autorizar_facturas":
     except Exception as e:
         st.error(f"No se pudo cargar la página de Autorizar Facturas: {e}")
     if st.button("⬅️ Volver al menú principal"):
-        go_to("
+        go_to("menu")
