@@ -35,7 +35,9 @@ def render():
         # Traer productos asociados
         productos = supabase.table("productos_tmp").select("*").eq("factura_id", factura_sel["id"]).execute().data
         df_prod = pd.DataFrame(productos)
-        st.dataframe(df_prod[["codigo_proveedor"],["descripcion_item"],["cantidad_sugerida"],["valor_unitario"],["valor_total"]])
+        cols = ["codigo_proveedor", "descripcion_item", "cantidad_sugerida", "valor_unitario", "valor_total"]
+        cols_validas = [c for c in cols if c in df_prod.columns]
+        st.dataframe(df_prod[cols_validas])
 
         if st.button("Autorizar factura"):
             # Actualizar inventario
