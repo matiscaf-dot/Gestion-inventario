@@ -43,8 +43,9 @@ def render():
             for _, row in df_prod.iterrows():
                 registrar_historial(st.session_state["usuario"], "entrada",
                                     row["codigo_proveedor"], row["descripcion_item"],
-                                    row["cantidad_sugerida"], proveedor=factura_sel["proveedor"],
-                                    nota=f"Factura {factura_sel['num_factura']} autorizada")
+                                    row["valor_unitario"],row["valor_total"],
+                                    row["cantidad_real"],row["precio_producto"], proveedor=factura_sel["proveedor"],
+                                    nota=f"Factura {factura_sel['factura_id']} autorizada")
                 # Actualizar stock
                 if row["codigo_proveedor"] in df["codigo"].values:
                     df.loc[df["codigo"] == row["codigo_proveedor"], "cantidad"] += int(row["cantidad_sugerida"])
