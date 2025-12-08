@@ -248,7 +248,7 @@ elif opcion == "Facturas":
                 factura_file.getvalue()
             )
             url_publica = supabase.storage.from_("facturas").get_public_url(unique_filename)
-            print("Hola")
+            st.tet("Hola")
             # 2. Insertar cabecera en tabla facturas
             factura = supabase.table("facturas").insert({
                 "numero": numero,
