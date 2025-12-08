@@ -202,13 +202,15 @@ elif opcion == "Entradas":
     numero = st.text_input("Número de factura")
     proveedor = st.text_input("Proveedor")
     fecha = st.date_input("Fecha", datetime.now().date())
-
+    st.text("Hola")
     # --- Opción 1: Subir factura en PDF ---
     st.subheader("Subir factura en PDF")
     factura_file = st.file_uploader("Selecciona factura en PDF", type=["pdf"])
-
+    st.text("Hola2")
     if factura_file is not None and st.button("Procesar Factura PDF"):
+        st.text("Hola3")
         try:
+            st.text("Hola4")
             import re, uuid
 
             safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', factura_file.name)
@@ -219,7 +221,7 @@ elif opcion == "Entradas":
                 factura_file.getvalue()
             )
             url_publica = supabase.storage.from_("facturas").get_public_url(unique_filename)
-
+            st.text("Hola5")
             factura = supabase.table("facturas").insert({
                 "numero": numero,
                 "proveedor": proveedor,
@@ -248,7 +250,7 @@ elif opcion == "Entradas":
                                     "cantidad": cantidad,
                                     "precio_costo": precio_costo
                                 })
-
+            st.text("Hola7")
             for p in productos:
                 supabase.table("factura_detalle").insert({
                     "factura_id": factura_id,
@@ -269,7 +271,7 @@ elif opcion == "Entradas":
                     "fecha_ingreso": datetime.now().isoformat(),
                     "proveedor": proveedor
                 }).execute()
-
+            st.text("Hlola8")
                 registrar_historial(
                     usuario=st.session_state["usuario"],
                     tipo="entrada",
