@@ -198,57 +198,36 @@ if opcion == "Productos":
 elif opcion == "Entradas":
     st.title("➕ Registrar Entrada de Inventario")
 
-    # --- Opción 1: Subir factura en PDF ---
-    st.subheader("Subir factura en PDF")
+    # Subir factura en PDF
     factura_file = st.file_uploader("Selecciona factura en PDF", type=["pdf"])
-    # aquí mantienes tu lógica actual de procesar PDF y registrar productos...
 
-    st.divider()
+    if factura_file is not None:
+        st.info(f"Archivo cargado: {factura_file.name}")
 
-    # --- Opción 2: Capturar factura con cámara ---
-    st.subheader("Capturar factura con cámara")
-    foto = st.camera_input("Toma una foto de la factura")
+        if st.button("📤 Subir a Supabase"):
+            import re, uuid
 
-    if foto is not None:
-        st.success("✅ Foto capturada")
+            # Normalizar nombre de archivo
+            safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '_', factura_file.name)
+            unique_filename = f"{uuid.uuid4()}_{safe_filename}"
 
-        from PIL import Image
-        import pytesseract
+            try:
+                # Subir archivo al bucket facturas
+                supabase.storage.from_("facturas").upload(
+                    unique_filename,
+                    factura_file.getvalue()
+                )
 
-        img = Image.open(foto)
-        texto = pytesseract.image_to_string(img, lang="spa")
+                # Obtener URL pública
+                url_publica = supabase.storage.from_("facturas").get_public_url(unique_filename)
 
-        st.text_area("Texto detectado en la factura", texto, height=200)
+                st.success(f"✅ Archivo subido correctamente a Supabase\nURL pública: {url_publica}")
 
-        # Aquí puedes aplicar la misma lógica de parseo que usas con PDF
-        productos = []
-        for line in texto.split("\n"):
-            parts = line.split()
-            if len(parts) >= 4 and parts[2].isdigit():
-                codigo = parts[0]
-                nombre = parts[1]
-                cantidad = int(parts[2])
-                try:
-                    precio_costo = float(parts[3].replace(",", "."))
-                except:
-                    precio_costo = 0.0
-                productos.append({
-                    "codigo": codigo,
-                    "nombre": nombre,
-                    "cantidad": cantidad,
-                    "precio_costo": precio_costo
-                })
+                # Aquí puedes continuar con la lógica de registrar cabecera y extraer productos
+                # supabase.table("facturas").insert({...})
 
-        if productos:
-            st.write("Productos detectados:")
-            st.dataframe(productos)
-
-            if st.button("Registrar productos desde foto"):
-                for p in productos:
-                    registrar_movimiento("entrada", p["codigo"], p["nombre"], p["cantidad"],
-                                         usuario_actual=st.session_state["usuario"],
-                                         precio_costo=p["precio_costo"])
-                st.success("✅ Productos registrados en inventario")
+            except Exception as e:
+                st.error(f"❌ Error al subir archivo: {e}")
 
 # ==============================
 # SECCIÓN SALIDAS
