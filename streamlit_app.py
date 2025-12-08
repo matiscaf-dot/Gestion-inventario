@@ -1037,7 +1037,7 @@ if st.session_state["pagina"] == "configuracion":
     nuevo_rol_mod = st.selectbox("Nuevo rol", ["admin", "bodeguero", "vendedor"], index=["admin", "bodeguero", "vendedor"].index(usuarios[usuario_sel]["rol"]), key="cfg_rol_mod")
 
     if st.button("💾 Guardar cambios", key="cfg_guardar_cambios"):
-        if usuario_sel == "admin" y nuevo_rol_mod != "admin":
+        if usuario_sel == "admin" and nuevo_rol_mod != "admin":
             st.warning("No puedes cambiar el rol del administrador principal.")
         else:
             if nueva_clave_mod:
