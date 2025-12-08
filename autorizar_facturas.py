@@ -40,31 +40,31 @@ def render():
         st.dataframe(df_prod[cols_validas])
 
         if st.button("Autorizar factura"):
-        # Cargar productos asociados
-        productos = supabase.table("productos_tmp").select("*").eq("factura_id", factura_sel["id"]).execute().data
-        df_prod = pd.DataFrame(productos)
-    
-        if df_prod.empty:
-            st.error("❌ No se encontraron productos asociados a esta factura.")
-            st.stop()
-    
-        registros_inventario = []
-        for _, row in df_prod.iterrows():
-            registros_inventario.append({
-                "factura_id": factura_sel["id"],
-                "codigo_proveedor": str(row.get("codigo_proveedor", "")).strip(),
-                "descripcion_item": str(row.get("descripcion_item", "")).strip(),
-                "cantidad_factura": int(row.get("cantidad_factura", 0)),
-                "valor_unitario": float(row.get("valor_unitario", 0.0)),
-                "valor_total": float(row.get("valor_total", 0.0)),
-                "cantidad_real": row.get("cantidad_real", None),
-                "precio_producto": float(row.get("precio_producto", 0.0))
-            })
-    
-        # Insertar en inventario
-        supabase.table("inventario").upsert(registros_inventario).execute()
-    
-        # Actualizar estado de la factura
-        supabase.table("detalle_factura_tmp").update({"estado": "autorizada"}).eq("id", factura_sel["id"]).execute()
-    
-        st.success("✅ Factura autorizada y productos traspasados al inventario.")
+            # Cargar productos asociados
+            productos = supabase.table("productos_tmp").select("*").eq("factura_id", factura_sel["id"]).execute().data
+            df_prod = pd.DataFrame(productos)
+        
+            if df_prod.empty:
+                st.error("❌ No se encontraron productos asociados a esta factura.")
+                st.stop()
+        
+            registros_inventario = []
+            for _, row in df_prod.iterrows():
+                registros_inventario.append({
+                    "factura_id": factura_sel["id"],
+                    "codigo_proveedor": str(row.get("codigo_proveedor", "")).strip(),
+                    "descripcion_item": str(row.get("descripcion_item", "")).strip(),
+                    "cantidad_factura": int(row.get("cantidad_factura", 0)),
+                    "valor_unitario": float(row.get("valor_unitario", 0.0)),
+                    "valor_total": float(row.get("valor_total", 0.0)),
+                    "cantidad_real": row.get("cantidad_real", None),
+                    "precio_producto": float(row.get("precio_producto", 0.0))
+                })
+        
+            # Insertar en inventario
+            supabase.table("inventario").upsert(registros_inventario).execute()
+        
+            # Actualizar estado de la factura
+            supabase.table("detalle_factura_tmp").update({"estado": "autorizada"}).eq("id", factura_sel["id"]).execute()
+        
+            st.success("✅ Factura autorizada y productos traspasados al inventario.")
