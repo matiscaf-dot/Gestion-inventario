@@ -45,7 +45,7 @@ def render():
             for _, row in df_prod.iterrows():
                 codigo = str(row.get("codigo_proveedor", "")).strip()
                 descripcion = str(row.get("descripcion_item", "")).strip()
-                cantidad = int(row.get("cantidad_sugerida", 0))
+                cantidad = int(row.get("cantidad_factura", 0))
                 valor_unitario = float(row.get("valor_unitario", 0.0))
             
                 registrar_historial(
