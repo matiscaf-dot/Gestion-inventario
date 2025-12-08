@@ -333,9 +333,59 @@ if st.session_state["pagina"] == "productos":
     proveedor_sel = st.selectbox("Proveedor (opcional)", prov_options)
     nuevo_proveedor_txt = st.text_input("O crea un nuevo proveedor (nombre) - opcional")
     if st.button("💾 Guardar producto"):
-        # ... misma lógica de guardar que antes
-        pass
+        if not codigo.strip():
+            st.error("❌ Debes ingresar un código de producto.")
+        else:
+            # Determinar proveedor
+            proveedor_final = ""
+            if nuevo_proveedor_txt.strip():
+                # Crear nuevo proveedor si no existe
+                if nuevo_proveedor_txt not in prov_df["nombre"].astype(str).values:
+                    new_id = 1 if prov_df.empty else prov_df["id"].max() + 1
+                    prov_df = prov_df.append({
+                        "id": new_id,
+                        "nombre": nuevo_proveedor_txt.strip(),
+                        "contacto": "",
+                        "email": "",
+                        "telefono": "",
+                        "direccion": "",
+                        "notas": ""
+                    }, ignore_index=True)
+                    guardar_proveedores(prov_df)
+                proveedor_final = nuevo_proveedor_txt.strip()
+            elif proveedor_sel.strip():
+                proveedor_final = proveedor_sel.strip()
 
+            # Si el producto ya existe → actualizar
+            if codigo in df["codigo"].values:
+                idx = df.index[df["codigo"] == codigo][0]
+                df.at[idx, "nombre"] = nombre
+                df.at[idx, "descripcion"] = descripcion
+                df.at[idx, "categoria"] = categoria
+                df.at[idx, "cantidad"] = cantidad
+                df.at[idx, "precio_costo"] = precio_costo
+                df.at[idx, "precio_venta"] = precio_venta
+                df.at[idx, "proveedor"] = proveedor_final
+                st.success("✅ Producto actualizado correctamente.")
+                registrar_historial(st.session_state["usuario"], "actualizacion", codigo, nombre, cantidad, proveedor=proveedor_final, nota="Producto actualizado")
+            else:
+                # Crear nuevo producto
+                nueva_fila = pd.DataFrame([{
+                    "codigo": codigo,
+                    "nombre": nombre,
+                    "descripcion": descripcion,
+                    "categoria": categoria,
+                    "cantidad": cantidad,
+                    "precio_costo": precio_costo,
+                    "precio_venta": precio_venta,
+                    "fecha_ingreso": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "proveedor": proveedor_final
+                }])
+                df = pd.concat([df, nueva_fila], ignore_index=True)
+                st.success("✅ Producto agregado correctamente.")
+                registrar_historial(st.session_state["usuario"], "nuevo", codigo, nombre, cantidad, proveedor=proveedor_final, nota="Producto creado manualmente")
+
+            guardar_datos(df)
         st.divider()
     if st.session_state["rol"] == "bodeguero" or :
         st.subheader("Facturas")
