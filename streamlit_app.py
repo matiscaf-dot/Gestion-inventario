@@ -575,7 +575,7 @@ if st.session_state["pagina"] == "entradas":
                         for row in table:
                             st.write("Fila:", row)
                             # Ajusta este umbral si tu tabla tiene 3 columnas (p.ej., código, desc, cantidad y el precio/valor en otra tabla)
-                            if row and len(row) >= 6:
+                            if row and len(row) > 6:
                                 codigo_row = str(row[0]).strip()
                                 descripcion_row = str(row[1]).strip()
                                 try:
