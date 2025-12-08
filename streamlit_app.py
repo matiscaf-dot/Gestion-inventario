@@ -290,7 +290,7 @@ elif opcion == "Entradas":
             st.text(productos)
             st.success("✅ Productos ingresados desde factura PDF")
             st.rerun()
-            
+            st.text(productos)
         except Exception as e:
             st.error(f"❌ Error al procesar factura PDF: {e}")
 
