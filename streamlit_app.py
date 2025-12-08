@@ -252,6 +252,7 @@ elif opcion == "Entradas":
                                 })
             st.text("Hola7")
             for p in productos:
+                st.text("Hola8")
                 supabase.table("factura_detalle").insert({
                     "factura_id": factura_id,
                     "codigo": p["codigo"],
@@ -259,7 +260,7 @@ elif opcion == "Entradas":
                     "cantidad": p["cantidad"],
                     "precio_costo": p["precio_costo"]
                 }).execute()
-
+                st.text("Hola9")
                 supabase.table("inventario").upsert({
                     "codigo": p["codigo"],
                     "nombre": p["nombre"],
