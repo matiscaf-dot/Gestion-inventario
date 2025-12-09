@@ -298,11 +298,18 @@ if st.session_state["pagina"] == "dashboard":
     # Consultar inventario desde Supabase
     response = supabase.table("inventario").select("*").execute()
     df = pd.DataFrame(response.data)
-
-    # Mostrar métricas y tabla
+    
+    # Mostrar métricas generales
     st.metric("Total de Productos", len(df))
-    st.metric("Stock Total", int(df["cantidad_factura"].sum()))  # ajusta según tu columna real
-    st.dataframe(df, use_container_width=True)
+    if "cantidad_real" in df.columns:
+        st.metric("Stock Total", int(df["cantidad_real"].sum()))
+    else:
+        st.warning("⚠️ No se encontró la columna 'cantidad_real' en inventario.")
+    
+    # Mostrar solo columnas relevantes para vendedores
+    cols_vendedores = ["codigo_proveedor", "descripcion_item", "cantidad_real", "precio_producto"]
+    cols_validas = [c for c in cols_vendedores if c in df.columns]
+    st.dataframe(df[cols_validas], use_container_width=True)
 
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
