@@ -65,9 +65,37 @@ def cargar_usuarios_supabase():
         return {}
 
 def cargar_usuarios():
-    cargar_usuarios_supabase()
-    with open(USUARIOS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    """
+    Obtiene los usuarios directamente desde la tabla 'usuarios' en Supabase.
+    Devuelve un diccionario con la estructura:
+    {
+        "usuario": {"clave": "...", "rol": "..."},
+        ...
+    }
+    """
+    from supabase import create_client
+    SUPABASE_URL = st.secrets["SUPABASE_URL"]
+    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+    try:
+        response = supabase.table("usuarios").select("*").execute()
+        data = response.data or []
+
+        usuarios_dict = {}
+        for row in data:
+            usuario = str(row.get("usuario", "")).strip()
+            clave = str(row.get("clave", "")).strip()
+            rol = str(row.get("rol", "")).strip()
+
+            if usuario:
+                usuarios_dict[usuario] = {"clave": clave, "rol": rol}
+
+        return usuarios_dict
+
+    except Exception as e:
+        st.error(f"❌ Error al cargar usuarios desde Supabase: {e}")
+        return {}
 
 def guardar_usuarios(data):
     with open(USUARIOS_FILE, "w", encoding="utf-8") as f:
