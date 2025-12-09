@@ -307,18 +307,6 @@ if st.session_state["pagina"] == "dashboard":
         st.warning("⚠️ No se encontró la columna 'cantidad_real' en inventario.")
     # Barra de búsqueda
     busqueda = st.text_input("🔎 Buscar producto (por código, nombre, stock o precio)")
-    
-    # Filtrar resultados
-    if busqueda:
-        busqueda = busqueda.strip().lower()
-        df_filtrado = df[
-            df["codigo_proveedor"].astype(str).str.lower().str.contains(busqueda) |
-            df["descripcion_item"].astype(str).str.lower().str.contains(busqueda) |
-            df["cantidad_real"].astype(str).str.contains(busqueda) |
-            df["precio_producto"].astype(str).str.contains(busqueda)
-        ]
-    else:
-        df_filtrado = df
     # Mostrar solo columnas relevantes para vendedores con nombres amigables
     cols_vendedores = {
         "codigo_proveedor": "Código de barras",
@@ -331,7 +319,16 @@ if st.session_state["pagina"] == "dashboard":
     df_vendedores = df[list(cols_vendedores.keys())].rename(columns=cols_vendedores)
     
     st.dataframe(df_vendedores, use_container_width=True)
-
+    if busqueda:
+        busqueda = busqueda.strip().lower()
+        df_filtrado = df[
+            df["Código de barras"].astype(str).str.lower().str.contains(busqueda) |
+            df["Nombre producto"].astype(str).str.lower().str.contains(busqueda) |
+            df["Stock"].astype(str).str.contains(busqueda) |
+            df["Precio"].astype(str).str.contains(busqueda)
+        ]
+    else:
+        df_filtrado = df
 
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
