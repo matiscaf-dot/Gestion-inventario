@@ -5,6 +5,26 @@ from datetime import datetime
 from core.facturas import normalizar_tabla
 from streamlit_app import cargar_datos, guardar_datos, registrar_historial
 
+def calcular_cantidad_real(row):
+    try:
+        valor_total = float(row.get("valor_total", 0.0))
+        valor_unitario = float(row.get("valor_unitario", 0.0))
+        cantidad_factura = safe_int(row.get("cantidad_factura"))
+
+        # Si valor_unitario y valor_total están bien definidos
+        if valor_unitario > 0 and valor_total > 0:
+            cantidad_calculada = round((valor_total * 1.19) / valor_unitario)
+            # Si coincide con la cantidad_factura, usamos esa
+            if cantidad_calculada == cantidad_factura:
+                return cantidad_factura
+            else:
+                # Si no coincide, usamos la calculada como cantidad_real
+                return cantidad_calculada
+        else:
+            return cantidad_factura
+    except:
+        return cantidad_factura
+
 # Funciones de sanitización
 def safe_int(x):
     try:
@@ -70,7 +90,7 @@ def render():
                     "cantidad_factura": safe_int(row.get("cantidad_factura")),
                     "valor_unitario": safe_float(row.get("valor_unitario")),
                     "valor_total": safe_float(row.get("valor_total")),
-                    "cantidad_real": row.get("cantidad_real", None),
+                    "cantidad_real":calcular_cantidad_real(row),
                     "precio_producto": safe_float(row.get("precio_producto"))
                 })
 
