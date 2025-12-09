@@ -316,7 +316,7 @@ if st.session_state["pagina"] == "menu":
     with col2:
         if rol in ["admin", "bodeguero"]:
             st.button("🗂️ Productos", use_container_width=True, on_click=go_to, args=("productos",))
-            st.button("➕ Registrar Entrada", use_container_width=True, on_click=go_to, args=("entradas",))
+            st.button("➕ Revisión de productos", use_container_width=True, on_click=go_to, args=("entradas",))
     st.markdown("---")
     col3, col4, col5 = st.columns(3)
     with col3:
