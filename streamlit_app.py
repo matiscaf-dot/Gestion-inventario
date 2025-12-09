@@ -298,25 +298,21 @@ if st.session_state["pagina"] == "dashboard":
     # Consultar inventario desde Supabase
     response = supabase.table("inventario").select("*").execute()
     df = pd.DataFrame(response.data)
-    
+
     # Mostrar métricas generales
     st.metric("Total de Productos", len(df))
     if "cantidad_real" in df.columns:
         st.metric("Stock Total", int(df["cantidad_real"].sum()))
-    else:
-        st.warning("⚠️ No se encontró la columna 'cantidad_real' en inventario.")
+
+    # Barra de búsqueda
     busqueda = st.text_input("🔎 Buscar producto (por código, nombre, stock o precio)")
-    
-    # Filtrar resultados
+
     if busqueda:
         busqueda = busqueda.strip().lower()
-    
-        # Convertir todas las columnas relevantes a string seguro
-        df["codigo_proveedor"] = df["codigo_proveedor"].astype(str).fillna("")
-        df["descripcion_item"] = df["descripcion_item"].astype(str).fillna("")
-        df["cantidad_real"] = df["cantidad_real"].astype(str).fillna("")
-        df["precio_producto"] = df["precio_producto"].astype(str).fillna("")
-    
+        # Convertir columnas a string seguro
+        for col in ["codigo_proveedor","descripcion_item","cantidad_real","precio_producto"]:
+            if col in df.columns:
+                df[col] = df[col].astype(str).fillna("")
         mask = (
             df["codigo_proveedor"].str.lower().str.contains(busqueda) |
             df["descripcion_item"].str.lower().str.contains(busqueda) |
@@ -326,11 +322,27 @@ if st.session_state["pagina"] == "dashboard":
         df_filtrado = df[mask]
     else:
         df_filtrado = df
-    # Mostrar solo columnas relevantes
-    cols_vendedores = {"codigo_proveedor": "Código de barras", "descripcion_item":"Nombre producto", "cantidad_real": "Stock", "precio_producto":"Precio"}
-    cols_validas = [c for c in cols_vendedores if c in df_filtrado.columns]
-    st.dataframe(df_filtrado[cols_validas], use_container_width=True)
-    # Barra de búsque
+
+    # Diccionario de nombres amigables
+    nombres_columnas = {
+        "codigo_proveedor": "Código de barras",
+        "descripcion_item": "Nombre del producto",
+        "cantidad_real": "Stock disponible",
+        "precio_producto": "Precio de venta"
+    }
+
+    rol = st.session_state.get("rol")
+
+    if rol == "vendedor":
+        # Vista simplificada para vendedores
+        cols_vendedores = ["codigo_proveedor","descripcion_item","cantidad_real","precio_producto"]
+        cols_validas = [c for c in cols_vendedores if c in df_filtrado.columns]
+        df_vendedores = df_filtrado[cols_validas].rename(columns=nombres_columnas)
+        st.dataframe(df_vendedores, use_container_width=True)
+    else:
+        # Vista completa para bodeguero/admin
+        df_admin = df_filtrado.rename(columns=nombres_columnas)
+        st.dataframe(df_admin, use_container_width=True)
 
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
