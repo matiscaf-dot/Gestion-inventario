@@ -32,15 +32,40 @@ os.makedirs(CAPTURAS_DIR, exist_ok=True)
 # ==============================
 # FUNCIONES AUXILIARES
 # ==============================
-def asegurar_usuarios_iniciales(): 
-    if not os.path.exists(USUARIOS_FILE): 
-        usuarios_default = { "admin": {"clave": "1234", "rol": "admin"}, 
-                            "jefe": {"clave": "jefe123", "rol": "admin"}, 
-                            "hector": {"clave": "fulltime", "rol": "bodeguero"}, 
-                            "vendedor1": {"clave": "1234", "rol": "vendedor"}, 
-                            "vendedor2": {"clave": "abc123", "rol": "vendedor"} } 
-        with open(USUARIOS_FILE, "w", encoding="utf-8") as f: 
-            json.dump(usuarios_default, f, indent=4)
+def cargar_usuarios_supabase():
+    """
+    Consulta la tabla 'usuarios' en Supabase y devuelve un diccionario
+    con la estructura esperada para el login:
+    {
+        "usuario": {"clave": "...", "rol": "..."},
+        ...
+    }
+    """
+    from supabase import create_client
+    SUPABASE_URL = st.secrets["SUPABASE_URL"]
+    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+    try:
+        # Consultar todos los registros de la tabla usuarios
+        response = supabase.table("usuarios").select("*").execute()
+        data = response.data or []
+
+        usuarios_dict = {}
+        for row in data:
+            # Asegúrate de que tu tabla tenga columnas: usuario, clave, rol
+            usuario = str(row.get("usuario", "")).strip()
+            clave = str(row.get("clave", "")).strip()
+            rol = str(row.get("rol", "")).strip()
+
+            if usuario:
+                usuarios_dict[usuario] = {"clave": clave, "rol": rol}
+
+        return usuarios_dict
+
+    except Exception as e:
+        st.error(f"❌ Error al cargar usuarios desde Supabase: {e}")
+        return {}
 
 def cargar_usuarios():
     asegurar_usuarios_iniciales()
