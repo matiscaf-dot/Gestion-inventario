@@ -305,6 +305,27 @@ if st.session_state["pagina"] == "dashboard":
         st.metric("Stock Total", int(df["cantidad_real"].sum()))
     else:
         st.warning("⚠️ No se encontró la columna 'cantidad_real' en inventario.")
+    busqueda = st.text_input("🔎 Buscar producto (por código, nombre, stock o precio)")
+    
+    # Filtrar resultados
+    if busqueda:
+        busqueda = busqueda.strip().lower()
+    
+        # Convertir todas las columnas relevantes a string seguro
+        df["codigo_proveedor"] = df["codigo_proveedor"].astype(str).fillna("")
+        df["descripcion_item"] = df["descripcion_item"].astype(str).fillna("")
+        df["cantidad_real"] = df["cantidad_real"].astype(str).fillna("")
+        df["precio_producto"] = df["precio_producto"].astype(str).fillna("")
+    
+        mask = (
+            df["codigo_proveedor"].str.lower().str.contains(busqueda) |
+            df["descripcion_item"].str.lower().str.contains(busqueda) |
+            df["cantidad_real"].str.contains(busqueda) |
+            df["precio_producto"].str.contains(busqueda)
+        )
+        df_filtrado = df[mask]
+    else:
+        df_filtrado = df
     # Mostrar solo columnas relevantes para vendedores con nombres amigables
     cols_vendedores = {
         "codigo_proveedor": "Código de barras",
@@ -317,28 +338,7 @@ if st.session_state["pagina"] == "dashboard":
     df_vendedores = df[list(cols_vendedores.keys())].rename(columns=cols_vendedores)
     
     st.dataframe(df_vendedores, use_container_width=True)
-    # Barra de búsqueda
-busqueda = st.text_input("🔎 Buscar producto (por código, nombre, stock o precio)")
-
-# Filtrar resultados
-if busqueda:
-    busqueda = busqueda.strip().lower()
-
-    # Convertir todas las columnas relevantes a string seguro
-    df["codigo_proveedor"] = df["codigo_proveedor"].astype(str).fillna("")
-    df["descripcion_item"] = df["descripcion_item"].astype(str).fillna("")
-    df["cantidad_real"] = df["cantidad_real"].astype(str).fillna("")
-    df["precio_producto"] = df["precio_producto"].astype(str).fillna("")
-
-    mask = (
-        df["codigo_proveedor"].str.lower().str.contains(busqueda) |
-        df["descripcion_item"].str.lower().str.contains(busqueda) |
-        df["cantidad_real"].str.contains(busqueda) |
-        df["precio_producto"].str.contains(busqueda)
-    )
-    df_filtrado = df[mask]
-else:
-    df_filtrado = df
+    # Barra de búsque
 
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
