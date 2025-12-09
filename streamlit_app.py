@@ -322,9 +322,9 @@ if st.session_state["pagina"] == "dashboard":
     if busqueda:
         busqueda = busqueda.strip().lower()
         df_filtrado = df[
-            df["Nombre producto"].astype(str).str.lower().str.contains(busqueda) |
-            df["Stock"].astype(str).str.contains(busqueda) |
-            df["Precio"].astype(str).str.contains(busqueda)
+            df["descripcion_item"].astype(str).str.lower().str.contains(busqueda) |
+            df["cantidad_real"].astype(str).str.contains(busqueda) |
+            df["precio_producto"].astype(str).str.contains(busqueda)
         ]
     else:
         df_filtrado = df
