@@ -451,6 +451,7 @@ if st.session_state["pagina"] == "salidas":
                 supabase.table("inventario").update({"cantidad_real": nuevo_stock}).eq("codigo_proveedor", codigo).execute()
                 st.success(f"✅ Venta registrada. Nuevo stock: {nuevo_stock}")
                 st.experimental_rerun()
+    render()
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
 
