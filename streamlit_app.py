@@ -636,8 +636,15 @@ if st.session_state["pagina"] == "subir_facturas":
     
         # 1) Procesar factura con tu código
         df_raw = procesar_factura(pdf_path)
+        # Validar si el parser devolvió algo útil
+        if df_raw is None or df_raw.empty:
+            st.error("❌ El archivo subido no corresponde a una factura válida o no se pudo procesar.")
+            st.stop()
         df_norm = normalizar_tabla(df_raw)
-    
+        # Validar también df_norm
+        if df_norm is None or df_norm.empty or "num_factura" not in df_norm.columns:
+            st.error("❌ El archivo no contiene información de factura válida.")
+            st.stop()
         # Validar si realmente corresponde a una factura
         if df_norm is None or df_norm.empty or "num_factura" not in df_norm.columns:
             st.error("❌ El archivo subido no corresponde a una factura válida. Verifica el documento.")
