@@ -32,6 +32,10 @@ os.makedirs(CAPTURAS_DIR, exist_ok=True)
 # ==============================
 # FUNCIONES AUXILIARES
 # ==============================
+from supabase import create_client
+    SUPABASE_URL = st.secrets["SUPABASE_URL"]
+    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 def cargar_usuarios_supabase():
     """
     Consulta la tabla 'usuarios' en Supabase y devuelve un diccionario
@@ -41,10 +45,6 @@ def cargar_usuarios_supabase():
         ...
     }
     """
-    from supabase import create_client
-    SUPABASE_URL = st.secrets["SUPABASE_URL"]
-    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
     try:
         # Consultar todos los registros de la tabla usuarios
