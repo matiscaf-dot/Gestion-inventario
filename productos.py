@@ -60,34 +60,17 @@ def render():
     # Mostrar tabla
     st.subheader("📋 Productos en inventario")
     st.dataframe(df_filtrado[list(nombres_columnas.values())], use_container_width=True)
+    st.subheader("✏️ Modificar precio de venta") 
+    codigos = df_filtrado["Código de barras"].unique().tolist() 
+    codigo_sel = st.selectbox("Selecciona producto", codigos) 
+    nuevo_precio = st.number_input("Nuevo precio de venta", min_value=0.0, step=100.0) 
+    st.write("🔍 Código seleccionado:", codigo_sel) st.write("🔍 Nuevo precio:", nuevo_precio)
+    try: 
+        supabase.table("inventario").update({"precio_producto": float(nuevo_precio)}).eq("codigo_proveedor", codigo_sel).execute() 
+        st.success(f"✅ Precio actualizado para el producto con código {codigo_sel}.") 
+        st.experimental_rerun() except Exception as e: st.error(" ") 
+            #st.error(f"❌ Error al actualizar precio: {e}") 
+    if st.button("Actualizar precio"): 
+        supabase.table("inventario").update({"precio_producto": nuevo_precio}).eq("codigo_proveedor", codigo_sel).execute() 
+        st.success(f"✅ Precio actualizado para el producto con código {codigo_sel}.")
 
-   st.subheader("✏️ Modificar precio de venta")
-
-    # Campo de búsqueda por código de barras
-    codigo_busqueda = st.text_input("🔎 Ingresa o escanea el código de barras").strip()
-    
-    # Filtrar producto según código ingresado
-    producto_sel = None
-    if codigo_busqueda:
-        producto = df_filtrado[df_filtrado["Código de barras"].astype(str) == codigo_busqueda]
-        if not producto.empty:
-            producto_sel = producto.iloc[0]
-            st.write("📦 Producto encontrado:", producto_sel.get("Nombre del producto", "Sin nombre"))
-            st.write("💲 Precio actual:", producto_sel.get("Precio de venta", "No definido"))
-        else:
-            st.warning("⚠️ No se encontró producto con ese código.")
-    
-    # Input para nuevo precio
-    nuevo_precio = st.number_input("Nuevo precio de venta", min_value=0.0, step=100.0)
-    
-    # Botón para actualizar
-    if st.button("Actualizar precio"):
-        if producto_sel is not None:
-            try:
-                supabase.table("inventario").update({"precio_producto": float(nuevo_precio)}).eq("codigo_proveedor", codigo_busqueda).execute()
-                st.success(f"✅ Precio actualizado para el producto con código {codigo_busqueda}.")
-                st.experimental_rerun()
-            except Exception as e:
-                st.error(f"❌ Error al actualizar precio: {e}")
-        else:
-            st.error("❌ Debes ingresar un código válido antes de actualizar.")
