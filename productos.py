@@ -67,6 +67,16 @@ def render():
     codigo_sel = st.selectbox("Selecciona código de barras", codigos)
     nuevo_precio = st.number_input("Nuevo precio de venta", min_value=0.0, step=100.0)
 
+    st.write("🔍 Código seleccionado:", codigo_sel)
+    st.write("🔍 Nuevo precio:", nuevo_precio)
+    
+    try:
+        supabase.table("inventario").update({"precio_producto": float(nuevo_precio)}).eq("codigo_proveedor", codigo_sel).execute()
+        st.success(f"✅ Precio actualizado para el producto con código {codigo_sel}.")
+        st.experimental_rerun()
+    except Exception as e:
+        st.error(f"❌ Error al actualizar precio: {e}")
+
     if st.button("Actualizar precio"):
         supabase.table("inventario").update({"precio_producto": nuevo_precio}).eq("codigo_proveedor", codigo_sel).execute()
         st.success(f"✅ Precio actualizado para el producto con código {codigo_sel}.")
