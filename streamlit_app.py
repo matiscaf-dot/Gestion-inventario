@@ -358,11 +358,26 @@ if st.session_state["pagina"] == "productos":
     df = cargar_datos()
     prov_df = cargar_proveedores()
     st.subheader("Listado actual")
+    # Diccionario de nombres amigables para bodeguero en módulo productos
+    nombres_bodeguero_productos = {
+        "codigo_proveedor": "Código de barras",
+        "descripcion_item": "Nombre producto",
+        "valor_unitario": "Costo producto",
+        "cantidad_real": "Stock"
+    }
+    
+    # Consultar productos desde inventario
+    response = supabase.table("inventario").select("*").execute()
+    df = pd.DataFrame(response.data)
+    
+    # Renombrar columnas solo para bodeguero
+    if st.session_state.get("rol") == "bodeguero":
+        df = df.rename(columns=nombres_bodeguero_productos)
+    
+    # Mostrar tabla
     st.dataframe(df, use_container_width=True)
+
     st.divider()
-    if st.session_state["rol"] == "bodeguero":
-        st.subheader("Facturas")
-        st.button("✅ Autorizar Facturas", use_container_width=True, on_click=go_to, args=("autorizar_facturas",))
 
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
