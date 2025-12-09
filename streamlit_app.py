@@ -359,7 +359,7 @@ if st.session_state["pagina"] == "productos":
         productos.render()   # ← aquí llamas al módulo productos para administrador
     else:
         st.error("❌ Solo el administrador puede acceder a este módulo.")
-    if st.session_state["rol"] not in ["admin", "bodeguero"]:
+    if st.session_state["rol"] not in ["bodeguero"]:
         st.error("No tienes permiso para acceder a esta sección.")
         st.stop()
     st.title("🗂️ Gestión de Productos")
