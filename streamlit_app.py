@@ -415,34 +415,42 @@ if st.session_state["pagina"] == "salidas":
     if st.session_state["rol"] not in ["admin", "vendedor"]:
         st.error("No tienes permiso para acceder a esta sección.")
         st.stop()
-    st.title("📤 Registrar Salida de Inventario")
-    codigo = st.text_input("Código del producto")
-    cantidad = st.number_input("Cantidad a descontar", min_value=1, step=1, value=1)
-    boleta_file = st.file_uploader("Subir boleta (opcional)", type=["pdf", "png", "jpg", "jpeg"])
-    if st.button("✅ Registrar salida"):
-        if not codigo:
-            st.warning("Ingresa un código antes de registrar.")
-        else:
-            df_check = cargar_datos()
-            if str(codigo).strip() not in df_check["codigo"].astype(str).values:
-                st.error("❌ El producto no existe en inventario.")
-            else:
-                current_qty = int(df_check.loc[df_check["codigo"].astype(str) == str(codigo).strip(), "cantidad"].iloc[0])
-                if cantidad > current_qty:
-                    st.warning(f"⚠️ Stock insuficiente. Stock actual: {current_qty}")
-                else:
-                    proveedor_actual = df_check.loc[df_check["codigo"].astype(str) == str(codigo).strip(), "proveedor"].iloc[0] if "proveedor" in df_check.columns else ""
-                    registrar_movimiento("salida", codigo, "", int(cantidad),
-                                         usuario_actual=st.session_state.get("usuario"),
-                                         proveedor=proveedor_actual)
-                    if boleta_file:
-                        boleta_path = os.path.join(BOLETAS_DIR, boleta_file.name)
-                        with open(boleta_path, "wb") as f:
-                            f.write(boleta_file.getbuffer())
-                        st.session_state["boleta_subida"] = boleta_path
-                    st.success("Salida registrada correctamente.")
-                    go_to("salidas")
-
+    def render():
+        st.title("🛒 Registro de Venta")
+    
+        if st.session_state.get("rol") != "vendedor":
+            st.error("❌ Solo los vendedores pueden acceder a este módulo.")
+            st.stop()
+    
+        # Escaneo o ingreso de código de barras
+        codigo = st.text_input("📷 Escanea o ingresa el código de barras").strip()
+    
+        if codigo:
+            # Buscar producto en inventario
+            response = supabase.table("inventario").select("*").eq("codigo_proveedor", codigo).execute()
+            data = response.data
+    
+            if not data:
+                st.warning("⚠️ Producto no encontrado.")
+                return
+    
+            producto = data[0]
+            nombre = producto.get("descripcion_item", "Sin nombre")
+            stock_actual = int(producto.get("cantidad_real", 0))
+            precio = producto.get("precio_producto", "Sin precio")
+    
+            st.markdown(f"**🧾 Producto:** {nombre}")
+            st.markdown(f"**📦 Stock actual:** {stock_actual}")
+            st.markdown(f"**💲 Precio de venta:** {precio}")
+    
+            # Input de cantidad a descontar
+            cantidad_vendida = st.number_input("Cantidad vendida", min_value=1, max_value=stock_actual, step=1)
+    
+            if st.button("✅ Confirmar venta"):
+                nuevo_stock = stock_actual - cantidad_vendida
+                supabase.table("inventario").update({"cantidad_real": nuevo_stock}).eq("codigo_proveedor", codigo).execute()
+                st.success(f"✅ Venta registrada. Nuevo stock: {nuevo_stock}")
+                st.experimental_rerun()
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
 
