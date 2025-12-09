@@ -16,8 +16,8 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # ==============================
 st.set_page_config(page_title="Inventario FullTime", layout="wide")
 DATA_FILE = "inventario.xlsx"
-USUARIOS_FILE = "usuarios.json"
-HISTORIAL_FILE = "historial.csv"
+USUARIOS_FILE = "usuarios"
+HISTORIAL_FILE = "historial"
 FACTURAS_DIR = "facturas"
 BOLETAS_DIR = "boletas"
 BACKUPS_DIR = "backups"
