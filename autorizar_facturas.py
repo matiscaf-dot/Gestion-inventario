@@ -19,7 +19,7 @@ def safe_float(x):
     try:
         return round(float(x), 2)
     except:
-        return 0.0
+        return 0
 
 def es_codigo_barras_valido(codigo: str) -> bool:
     return codigo.isdigit() and len(codigo) in [12, 13]
