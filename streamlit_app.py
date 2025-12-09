@@ -32,29 +32,15 @@ os.makedirs(CAPTURAS_DIR, exist_ok=True)
 # ==============================
 # FUNCIONES AUXILIARES
 # ==============================
-def asegurar_usuarios_iniciales():
-    from supabase import create_client
-    SUPABASE_URL = st.secrets["SUPABASE_URL"]
-    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-    try:
-        # Consultar todos los usuarios en la tabla
-        response = supabase.table("usuarios").select("*").execute()
-        data = response.data
-
-        usuarios_dict = {}
-        for row in data:
-            usuarios_dict[row["usuario"]] = {
-                "clave": row.get("clave", ""),
-                "rol": row.get("rol", "")
-            }
-
-        return usuarios_dict
-
-    except Exception as e:
-        st.error(f"❌ Error al cargar usuarios desde Supabase: {e}")
-        return {}
+def asegurar_usuarios_iniciales(): 
+    if not os.path.exists(USUARIOS_FILE): 
+        usuarios_default = { "admin": {"clave": "1234", "rol": "admin"}, 
+                            "jefe": {"clave": "jefe123", "rol": "admin"}, 
+                            "hector": {"clave": "fulltime", "rol": "bodeguero"}, 
+                            "vendedor1": {"clave": "1234", "rol": "vendedor"}, 
+                            "vendedor2": {"clave": "abc123", "rol": "vendedor"} } 
+        with open(USUARIOS_FILE, "w", encoding="utf-8") as f: 
+            json.dump(usuarios_default, f, indent=4)
 
 def cargar_usuarios():
     asegurar_usuarios_iniciales()
