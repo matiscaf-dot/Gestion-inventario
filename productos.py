@@ -75,7 +75,8 @@ def render():
         st.success(f"✅ Precio actualizado para el producto con código {codigo_sel}.")
         st.experimental_rerun()
     except Exception as e:
-        st.error(f"❌ Error al actualizar precio: {e}")
+        st.error(" ")
+        #st.error(f"❌ Error al actualizar precio: {e}")
 
     if st.button("Actualizar precio"):
         supabase.table("inventario").update({"precio_producto": nuevo_precio}).eq("codigo_proveedor", codigo_sel).execute()
