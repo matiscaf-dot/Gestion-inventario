@@ -356,7 +356,7 @@ if st.session_state["pagina"] == "dashboard":
 # ==============================
 if st.session_state["pagina"] == "productos":
     if st.session_state.get("rol") == "admin":
-        productos.render()   # ← aquí llamas al módulo productos para administrador
+        render()   # ← aquí llamas al módulo productos para administrador
         if st.button("⬅️ Volver al menú principal"):
             go_to("menu")
     else:
