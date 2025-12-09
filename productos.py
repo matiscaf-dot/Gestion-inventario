@@ -63,7 +63,7 @@ def render():
     st.subheader("✏️ Modificar precio de venta")
 
     # Buscador por código de barras
-    codigo_input = st.text_input("🔎 Ingresa o escanea el código de barras").strip()
+    codigo_input = st.text_input("🔎 Ingresa el producto a modificar precio").strip()
     
     producto_sel = None
     if codigo_input:
