@@ -327,7 +327,7 @@ if st.session_state["pagina"] == "dashboard":
     else:
         df_filtrado = df
     # Mostrar solo columnas relevantes
-    cols_vendedores = ["codigo_proveedor", "descripcion_item", "cantidad_real", "precio_producto"]
+    cols_vendedores = ["codigo_proveedor": "Código de barras", "descripcion_item":"Nombre producto", "cantidad_real": "Stock", "precio_producto":"Precio"]
     cols_validas = [c for c in cols_vendedores if c in df_filtrado.columns]
     st.dataframe(df_filtrado[cols_validas], use_container_width=True)
     # Barra de búsque
