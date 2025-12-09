@@ -629,27 +629,27 @@ if st.session_state["pagina"] == "subir_facturas":
     uploaded_file = st.file_uploader("Sube archivo PDF", type=["pdf"])
 
     if uploaded_file is not None:
-    # Guardar temporalmente para enviarlo a tu parser
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(uploaded_file.read())
-        pdf_path = tmp.name
-
-    # 1) Procesar factura con tu código
-    df_raw = procesar_factura(pdf_path)
-    df_norm = normalizar_tabla(df_raw)
-
-    # Validar si realmente corresponde a una factura
-    if df_norm is None or df_norm.empty or "num_factura" not in df_norm.columns:
-        st.error("❌ El archivo subido no corresponde a una factura válida. Verifica el documento.")
-        st.stop()
-
-    # Validar campos críticos
-    if not df_norm.get("num_factura").iloc[0]:
-        st.error("❌ No se detectó número de factura en el archivo. El documento no es válido.")
-        st.stop()
-
-    st.subheader("Productos identificados")
-    st.dataframe(df_norm[["descripcion_item", "cantidad_final", "valor_unitario"]])
+        # Guardar temporalmente para enviarlo a tu parser
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp.write(uploaded_file.read())
+            pdf_path = tmp.name
+    
+        # 1) Procesar factura con tu código
+        df_raw = procesar_factura(pdf_path)
+        df_norm = normalizar_tabla(df_raw)
+    
+        # Validar si realmente corresponde a una factura
+        if df_norm is None or df_norm.empty or "num_factura" not in df_norm.columns:
+            st.error("❌ El archivo subido no corresponde a una factura válida. Verifica el documento.")
+            st.stop()
+    
+        # Validar campos críticos
+        if not df_norm.get("num_factura").iloc[0]:
+            st.error("❌ No se detectó número de factura en el archivo. El documento no es válido.")
+            st.stop()
+    
+        st.subheader("Productos identificados")
+        st.dataframe(df_norm[["descripcion_item", "cantidad_final", "valor_unitario"]])
 
         # 2) Botón para enviar a bodega
         # Inicializar lista de facturas rechazadas en memoria
