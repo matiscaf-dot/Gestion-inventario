@@ -68,7 +68,7 @@ def cargar_usuarios_supabase():
         return {}
 
 def cargar_usuarios():
-    asegurar_usuarios_iniciales()
+    cargar_usuarios_supabase()
     with open(USUARIOS_FILE, "r", encoding="utf-8") as f:
         return json.load(f)
 
