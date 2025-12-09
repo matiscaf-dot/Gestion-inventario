@@ -326,18 +326,10 @@ if st.session_state["pagina"] == "dashboard":
         df_filtrado = df[mask]
     else:
         df_filtrado = df
-    # Mostrar solo columnas relevantes para vendedores con nombres amigables
-    cols_vendedores = {
-        "codigo_proveedor": "Código de barras",
-        "descripcion_item": "Nombre producto",
-        "cantidad_real": "Stock",
-        "precio_producto": "Precio"
-    }
-    
-    # Filtrar columnas que existan en la tabla
-    df_vendedores = df[list(cols_vendedores.keys())].rename(columns=cols_vendedores)
-    
-    st.dataframe(df_vendedores, use_container_width=True)
+    # Mostrar solo columnas relevantes
+    cols_vendedores = ["codigo_proveedor", "descripcion_item", "cantidad_real", "precio_producto"]
+    cols_validas = [c for c in cols_vendedores if c in df_filtrado.columns]
+    st.dataframe(df_filtrado[cols_validas], use_container_width=True)
     # Barra de búsque
 
     if st.button("⬅️ Volver al menú principal"):
