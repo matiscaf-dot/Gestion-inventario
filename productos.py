@@ -70,3 +70,5 @@ def render():
     if st.button("Actualizar precio"):
         supabase.table("inventario").update({"precio_producto": nuevo_precio}).eq("codigo_proveedor", codigo_sel).execute()
         st.success(f"✅ Precio actualizado para el producto con código {codigo_sel}.")
+    if st.button("⬅️ Volver al menú principal"):
+        go_to("menu")
