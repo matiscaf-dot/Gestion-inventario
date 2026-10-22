@@ -345,6 +345,26 @@ def procesar_factura(pdf_path):
     else:
         items = parse_generico(lines)
 
+    # Eliminar productos duplicados y conservar su primera aparición.
+    # Se comparan los datos que identifican cada línea del producto.
+    items_unicos = []
+    productos_vistos = set()
+    
+    for item in items:
+        clave = (
+            str(item.get("codigo_proveedor", "")).strip().upper(),
+            " ".join(str(item.get("descripcion_item", "")).split()).upper(),
+            str(item.get("cantidad", "")).strip(),
+            str(item.get("valor_final", "")).strip(),
+            str(item.get("subtotal_factura", "")).strip()
+        )
+    
+        if clave not in productos_vistos:
+            productos_vistos.add(clave)
+            items_unicos.append(item)
+    
+    items = items_unicos
+ 
     columnas = [
         "codigo_proveedor",
         "descripcion_item",
@@ -352,7 +372,7 @@ def procesar_factura(pdf_path):
         "valor_final",
         "subtotal_factura"
     ]
-
+    
     df = pd.DataFrame(items)
 
     if df.empty:
