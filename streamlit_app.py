@@ -628,7 +628,7 @@ if st.session_state["pagina"] == "entradas":
                     )
                 st.success("Hola4")
                 if registrar:
-        
+                    st.success("Hola6")
                     # Recuperar el producto seleccionado
                     producto = productos.loc[
                         productos["codigo"] == codigo_seleccionado
