@@ -731,35 +731,107 @@ if st.session_state["pagina"] == "historial":
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
 
+
 # ==============================
 # BACKUP
 # ==============================
 if st.session_state["pagina"] == "backup":
-    st.title("📦 Copia de Seguridad del Inventario")
-    df = cargar_datos()
-    prov_df = cargar_proveedores()
-    fecha = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-    backup_name = f"backup_inventario_{fecha}.xlsx"
-    buffer = BytesIO()
-    try:
-        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-            df.to_excel(writer, sheet_name="productos", index=False)
-            prov_df.to_excel(writer, sheet_name="proveedores", index=False)
-        buffer.seek(0)
-        backup_path = os.path.join(BACKUPS_DIR, backup_name)
-        with open(backup_path, "wb") as f:
-            f.write(buffer.getvalue())
-        st.success(f"Copia de seguridad creada: {backup_name}")
-        st.download_button(
-            "📥 Descargar copia de seguridad",
-            data=buffer.getvalue(),
-            file_name=backup_name,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-    except Exception as e:
-        st.error(f"Error creando copia de seguridad: {e}")
+
+    if st.session_state["rol"] != "admin":
+        st.error("No tienes permiso para acceder a esta sección.")
+        st.stop()
+
+    st.title("📦 Copia de Seguridad")
+
+    st.write(
+        "Genera un archivo Excel con los datos "
+        "actuales del inventario y los proveedores."
+    )
+
+    if st.button("Crear copia de seguridad"):
+
+        try:
+            # Consultar inventario desde Supabase
+            respuesta_inventario = (
+                supabase.table("inventario")
+                .select("*")
+                .execute()
+            )
+
+            df_inventario = pd.DataFrame(
+                respuesta_inventario.data or []
+            )
+
+            # Consultar proveedores desde Supabase
+            respuesta_proveedores = (
+                supabase.table("proveedores")
+                .select("*")
+                .execute()
+            )
+
+            df_proveedores = pd.DataFrame(
+                respuesta_proveedores.data or []
+            )
+
+            # Generar archivo Excel en memoria
+            fecha = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+            nombre_archivo = f"backup_{fecha}.xlsx"
+
+            buffer = BytesIO()
+
+            with pd.ExcelWriter(
+                buffer,
+                engine="openpyxl"
+            ) as writer:
+
+                df_inventario.to_excel(
+                    writer,
+                    sheet_name="inventario",
+                    index=False
+                )
+
+                df_proveedores.to_excel(
+                    writer,
+                    sheet_name="proveedores",
+                    index=False
+                )
+
+            archivo_excel = buffer.getvalue()
+
+            # Guardar copia en el servidor
+            os.makedirs(BACKUPS_DIR, exist_ok=True)
+
+            ruta_backup = os.path.join(
+                BACKUPS_DIR,
+                nombre_archivo
+            )
+
+            with open(ruta_backup, "wb") as archivo:
+                archivo.write(archivo_excel)
+
+            st.success("Copia de seguridad generada correctamente.")
+
+            st.write(f"Productos respaldados: {len(df_inventario)}")
+            st.write(f"Proveedores respaldados: {len(df_proveedores)}")
+
+            st.download_button(
+                label="📥 Descargar copia de seguridad",
+                data=archivo_excel,
+                file_name=nombre_archivo,
+                mime=(
+                    "application/vnd.openxmlformats-officedocument."
+                    "spreadsheetml.sheet"
+                )
+            )
+
+        except Exception as e:
+            st.error(
+                f"Error al generar la copia de seguridad: {e}"
+            )
+
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
+
 
 # ==============================
 # CONFIGURACIÓN
