@@ -140,6 +140,59 @@ def cargar_datos():
     df["codigo"] = df["codigo"].astype(str)
     return df
 
+def cargar_datos1():
+    try:
+        respuesta = (
+            supabase.table("inventario")
+            .select("*")
+            .execute()
+        )
+
+        datos = respuesta.data or []
+
+        if not datos:
+            return pd.DataFrame(columns=[
+                "codigo", "nombre", "descripcion", "categoria",
+                "cantidad", "precio_costo", "precio_venta",
+                "fecha_ingreso", "proveedor"
+            ])
+
+        df = pd.DataFrame(datos)
+
+        # Adaptar los nombres de Supabase a los que
+        # utiliza actualmente tu código en Excel.
+        equivalencias = {
+            "codigo_proveedor": "codigo",
+            "descripcion_item": "nombre",
+            "cantidad_real": "cantidad",
+            "valor_unitario": "precio_costo",
+            "precio_producto": "precio_venta"
+        }
+
+        df = df.rename(columns=equivalencias)
+
+        # Crear columnas que el código antiguo podría necesitar.
+        columnas = [
+            "codigo", "nombre", "descripcion", "categoria",
+            "cantidad", "precio_costo", "precio_venta",
+            "fecha_ingreso", "proveedor"
+        ]
+
+        for columna in columnas:
+            if columna not in df.columns:
+                df[columna] = ""
+
+        df["codigo"] = df["codigo"].astype(str)
+        df["cantidad"] = pd.to_numeric(
+            df["cantidad"], errors="coerce"
+        ).fillna(0).astype(int)
+
+        return df
+
+    except Exception as e:
+        st.error(f"Error al cargar el inventario desde Supabase: {e}")
+        return pd.DataFrame()
+
 def cargar_proveedores():
     if os.path.exists(DATA_FILE):
         try:
