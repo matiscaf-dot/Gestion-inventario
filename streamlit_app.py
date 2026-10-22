@@ -674,8 +674,7 @@ if st.session_state["pagina"] == "entradas":
             
         st.divider()
    
-        if st.button("⬅️ Volver al menú principal"):
-            go_to("menu")
+
         
             pass
     if st.button("⬅️ Volver al menú principal"):
