@@ -450,8 +450,7 @@ if st.session_state["pagina"] == "entradas":
         st.stop()
     st.title("📦 Registrar Entrada de Inventario")
     prov_df = cargar_proveedores()
-    if st.button("✅ Autorizar Facturas", use_container_width=True):
-        go_to("autorizar_facturas")
+    st.button("✅ Autorizar Facturas", use_container_width=True, on_click=go_to, args=("autorizar_facturas",))
     if st.button("✅ Registrar entrada"):
         # ... lógica de registrar_movimiento
         
@@ -471,12 +470,8 @@ if st.session_state["pagina"] == "entradas":
             prov_df = cargar_proveedores()
         
             # Botón para el módulo de autorización de facturas
-            st.button(
-                "✅ Autorizar Facturas",
-                use_container_width=True,
-                on_click=go_to,
-                args=("autorizar_facturas",)
-            )
+            if st.button("✅ Autorizar Facturas", use_container_width=True):
+                go_to("autorizar_facturas")
         
             st.divider()
             st.subheader("➕ Nueva entrada de mercadería")
