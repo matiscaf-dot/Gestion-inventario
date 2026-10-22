@@ -103,7 +103,7 @@ def render():
                     #"cantidad_factura": safe_int(row.get("cantidad_factura")),
                     "valor_unitario": safe_float(row.get("valor_unitario")),
                     "valor_total": safe_float(row.get("valor_total")),
-                    "cantidad_real": calcular_cantidad_real(row),
+         #           "cantidad_real": calcular_cantidad_real(row),
                     "precio_producto": safe_float(row.get("precio_producto"))
                 })
 
