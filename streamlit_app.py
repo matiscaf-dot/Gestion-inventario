@@ -453,6 +453,146 @@ if st.session_state["pagina"] == "entradas":
     st.button("✅ Autorizar Facturas", use_container_width=True, on_click=go_to, args=("autorizar_facturas",))
     if st.button("✅ Registrar entrada"):
         # ... lógica de registrar_movimiento
+        
+# ==============================
+# ENTRADAS DE INVENTARIO
+# ==============================
+if st.session_state["pagina"] == "entradas":
+
+    if st.session_state["rol"] not in ["admin", "bodeguero"]:
+        st.error("No tienes permiso para acceder a esta sección.")
+        st.stop()
+
+    st.title("📦 Registrar Entrada de Inventario")
+    st.write("Registra la recepción de mercadería y actualiza el stock.")
+
+    df = cargar_datos()
+    prov_df = cargar_proveedores()
+
+    # Botón para el módulo de autorización de facturas
+    st.button(
+        "✅ Autorizar Facturas",
+        use_container_width=True,
+        on_click=go_to,
+        args=("autorizar_facturas",)
+    )
+
+    st.divider()
+    st.subheader("➕ Nueva entrada de mercadería")
+
+    if df.empty:
+        st.warning(
+            "No hay productos registrados. "
+            "Primero debes crear un producto en la sección Productos."
+        )
+
+    else:
+        # Normalizar los códigos para evitar problemas de comparación
+        df["codigo"] = df["codigo"].astype(str).str.strip()
+
+        # Crear un listado de productos existentes
+        productos = (
+            df.drop_duplicates(subset=["codigo"])
+            .reset_index(drop=True)
+        )
+
+        codigos = productos["codigo"].tolist()
+
+        def mostrar_producto(codigo):
+            fila = productos.loc[
+                productos["codigo"] == codigo
+            ].iloc[0]
+
+            nombre = str(fila["nombre"])
+            stock = int(fila["cantidad"])
+
+            return f"{codigo} - {nombre} | Stock actual: {stock}"
+
+        # Obtener los proveedores registrados
+        if (
+            not prov_df.empty
+            and "nombre" in prov_df.columns
+        ):
+            proveedores = [
+                str(p).strip()
+                for p in prov_df["nombre"].dropna().tolist()
+                if str(p).strip()
+            ]
+        else:
+            proveedores = []
+
+        proveedores = list(dict.fromkeys(proveedores))
+        opciones_proveedor = ["Sin especificar"] + proveedores
+
+        # Formulario de entrada
+        with st.form("formulario_entrada_inventario"):
+
+            codigo_seleccionado = st.selectbox(
+                "Selecciona el producto",
+                options=codigos,
+                format_func=mostrar_producto
+            )
+
+            cantidad_entrada = st.number_input(
+                "Cantidad recibida",
+                min_value=1,
+                value=1,
+                step=1
+            )
+
+            proveedor_seleccionado = st.selectbox(
+                "Proveedor",
+                options=opciones_proveedor
+            )
+
+            registrar = st.form_submit_button(
+                "📥 Confirmar entrada",
+                use_container_width=True
+            )
+
+        if registrar:
+
+            # Recuperar el producto seleccionado
+            producto = productos.loc[
+                productos["codigo"] == codigo_seleccionado
+            ].iloc[0]
+
+            nombre_producto = str(producto["nombre"])
+
+            proveedor_final = (
+                ""
+                if proveedor_seleccionado == "Sin especificar"
+                else proveedor_seleccionado
+            )
+
+            try:
+                # Actualizar el stock y registrar el movimiento
+                registrar_movimiento(
+                    tipo="entrada",
+                    codigo=codigo_seleccionado,
+                    nombre=nombre_producto,
+                    cantidad=int(cantidad_entrada),
+                    usuario_actual=st.session_state.get(
+                        "usuario", "desconocido"
+                    ),
+                    proveedor=proveedor_final
+                )
+
+                st.success(
+                    f"Entrada registrada: {nombre_producto}. "
+                    f"Unidades recibidas: {int(cantidad_entrada)}."
+                )
+
+                st.rerun()
+
+            except Exception as e:
+                st.error(f"No se pudo registrar la entrada: {e}")
+
+    st.divider()
+
+    if st.button("⬅️ Volver al menú principal"):
+        go_to("menu")
+
         pass
     if st.button("⬅️ Volver al menú principal"):
         go_to("menu")
