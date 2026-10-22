@@ -644,22 +644,28 @@ if st.session_state["pagina"] == "entradas":
         
                     try:
                         # Actualizar el stock y registrar el movimiento
-                        registrar_movimiento(
-                            tipo="entrada",
+#                        registrar_movimiento(
+ #                           tipo="entrada",
+  #                          codigo=codigo_seleccionado,
+   #                         nombre=nombre_producto,
+    #                        cantidad=int(cantidad_entrada),
+     #                       usuario_actual=st.session_state.get(
+      #                          "usuario", "desconocido"
+       #                     ),
+        #                    proveedor=proveedor_final
+         #               )
+                        
+          #              st.success(
+           #                 f"Entrada registrada: {nombre_producto}. "
+            #                f"Unidades recibidas: {int(cantidad_entrada)}."
+             #           )
+                        nuevo_stock = registrar_entrada_supabase(
                             codigo=codigo_seleccionado,
-                            nombre=nombre_producto,
-                            cantidad=int(cantidad_entrada),
-                            usuario_actual=st.session_state.get(
-                                "usuario", "desconocido"
-                            ),
-                            proveedor=proveedor_final
+                            cantidad=int(cantidad_entrada)
                         )
-        
-                        st.success(
-                            f"Entrada registrada: {nombre_producto}. "
-                            f"Unidades recibidas: {int(cantidad_entrada)}."
-                        )
-        
+                        
+                        st.success(f"Entrada registrada. Nuevo stock: {nuevo_stock}")
+
                         st.rerun()
         
                     except Exception as e:
