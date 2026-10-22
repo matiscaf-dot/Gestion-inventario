@@ -231,29 +231,165 @@ def parse_libesa(lines):
     return items
 
 
+def parse_comercial_center(lines):
+    items = []
+
+    # Admite códigos como PIE-P15M/4 y cantidades como 20,00.
+    codigo_re = re.compile(r"^[A-Z0-9][A-Z0-9./_-]+$", re.IGNORECASE)
+    numero_re = re.compile(r"^\d+(?:[.,]\d+)?$")
+
+    unidades = {
+        "UN", "UND", "UNID", "UNIDAD",
+        "UNI", "CJ", "CAJA"
+    }
+
+    for line in lines:
+        tokens = line.replace("$", " $ ").split()
+
+        if len(tokens) < 5:
+            continue
+
+        codigo = tokens[0].strip()
+
+        if not codigo_re.fullmatch(codigo):
+            continue
+
+        # Buscar la cantidad seguida por la unidad.
+        cantidad = None
+        cantidad_idx = None
+        unidad_idx = None
+
+        for i in range(1, len(tokens) - 1):
+            cantidad_token = tokens[i].replace(",", ".")
+
+            if (
+                numero_re.fullmatch(cantidad_token)
+                and tokens[i + 1].strip(".,").upper() in unidades
+            ):
+                cantidad = float(cantidad_token)
+                cantidad_idx = i
+                unidad_idx = i + 1
+                break
+
+        if cantidad is None or cantidad_idx is None:
+            continue
+
+        # Este sistema trabaja con cantidades enteras.
+        if not cantidad.is_integer():
+            continue
+
+        descripcion = " ".join(tokens[1:cantidad_idx]).strip()
+
+        # El precio unitario es el número inmediatamente
+        # anterior al descuento y al subtotal.
+        numeros = []
+
+        for token in tokens[unidad_idx + 1:]:
+            limpio = token.replace("$", "").strip()
+
+            if numero_re.fullmatch(limpio):
+                numeros.append(limpio)
+
+        if len(numeros) < 2:
+            continue
+
+        # En el formato mostrado:
+        # cantidad = 20,00; unitario = 277; subtotal = 5.546
+        valor_unitario = a_float(numeros[-2])
+        subtotal = a_float(numeros[-1])
+
+        # normalizar_tabla calcula:
+        # valor_unitario = valor_tot * 1.19 / cantidad
+        # Por eso adaptamos valor_tot para conservar el
+        # precio unitario que aparece en la factura.
+        valor_tot = valor_unitario * int(cantidad) / 1.19
+
+        items.append({
+            "codigo_proveedor": codigo,
+            "descripcion_item": descripcion,
+            "cantidad": int(cantidad),
+            "valor_final": valor_tot,
+            "subtotal_factura": subtotal
+        })
+
+    return items
+
+
 def procesar_factura(pdf_path):
     lines = leer_pdf(pdf_path)
 
-    proveedor = lines[0]     # línea de arriba SIEMPRE es nombre proveedor
+    if not lines:
+        return pd.DataFrame()
+
+    texto_completo = " ".join(lines).lower()
+
+    # Buscar el proveedor sin asumir que la primera línea
+    # extraída contiene necesariamente su nombre.
+    proveedor = lines[0]
+
+    for line in lines:
+        if "comercial center" in line.lower():
+            proveedor = line
+            break
+
     num_factura = extraer_num_factura(lines)
     fecha_emision = extraer_fecha_emision(lines)
-    proveedor_lower = proveedor.lower()
+    proveedor_lower = texto_completo
 
-    # Selección por proveedor
-    if "embonor" in proveedor_lower:
+    if "comercial center" in proveedor_lower:
+        items = parse_comercial_center(lines)
+    elif "embonor" in proveedor_lower:
         items = parse_embonor(lines)
     elif "libesa" in proveedor_lower:
         items = parse_libesa(lines)
     else:
         items = parse_generico(lines)
 
+    columnas = [
+        "codigo_proveedor",
+        "descripcion_item",
+        "cantidad",
+        "valor_final",
+        "subtotal_factura"
+    ]
+
     df = pd.DataFrame(items)
+
+    if df.empty:
+        return df
+
     df.rename(columns={"valor_final": "valor_tot"}, inplace=True)
+
     df["proveedor"] = proveedor
     df["num_factura"] = num_factura
     df["fecha_emision"] = fecha_emision
 
     return df
+
+
+#def procesar_factura(pdf_path):
+ #   lines = leer_pdf(pdf_path)
+
+  #  proveedor = lines[0]     # línea de arriba SIEMPRE es nombre proveedor
+   # num_factura = extraer_num_factura(lines)
+    #fecha_emision = extraer_fecha_emision(lines)
+#    proveedor_lower = proveedor.lower()
+
+    # Selección por proveedor
+ #   if "embonor" in proveedor_lower:
+  #      items = parse_embonor(lines)
+   # elif "libesa" in proveedor_lower:
+    #    items = parse_libesa(lines)
+#    else:
+ #       items = parse_generico(lines)
+
+  #  df = pd.DataFrame(items)
+   # df.rename(columns={"valor_final": "valor_tot"}, inplace=True)
+    #df["proveedor"] = proveedor
+#    df["num_factura"] = num_factura
+ #   df["fecha_emision"] = fecha_emision
+
+  #  return df
 
 
 # NORMALIZAR TABLA
