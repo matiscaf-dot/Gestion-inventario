@@ -633,7 +633,7 @@ if st.session_state["pagina"] == "entradas":
                     producto = productos.loc[
                         productos["codigo"] == codigo_seleccionado
                     ].iloc[0]
-        
+                    st.success("Hola5")
                     nombre_producto = str(producto["nombre"])
         
                     proveedor_final = (
