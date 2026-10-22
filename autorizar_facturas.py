@@ -24,22 +24,22 @@ def safe_float(x):
 def es_codigo_barras_valido(codigo: str) -> bool:
     return codigo.isdigit() and len(codigo) in [12, 13]
 
-def calcular_cantidad_real(row):
-    try:
-        valor_total = float(row.get("valor_total", 0.0))
-        valor_unitario = float(row.get("valor_unitario", 0.0))
-        cantidad_factura = safe_int(row.get("cantidad_factura"))
+#def calcular_cantidad_real(row):
+ #   try:
+  #      valor_total = float(row.get("valor_total", 0.0))
+   #     valor_unitario = float(row.get("valor_unitario", 0.0))
+        #cantidad_factura = safe_int(row.get("cantidad_factura"))
 
-        if valor_unitario > 0 and valor_total > 0:
-            cantidad_calculada = round((valor_total * 1.19) / valor_unitario)
-            if cantidad_calculada == cantidad_factura:
-                return cantidad_factura
-            else:
-                return cantidad_calculada
-        else:
-            return cantidad_factura
-    except:
-        return cantidad_factura
+#        if valor_unitario > 0 and valor_total > 0:
+ #           cantidad_calculada = round((valor_total * 1.19) / valor_unitario)
+  #          if cantidad_calculada == cantidad_factura:
+   #             return cantidad_factura
+    #        else:
+     #           return cantidad_calculada
+    #    else:
+     #       return cantidad_factura
+#    except:
+ #       return cantidad_factura
 
 def render():
     st.title("✅ Autorizar Facturas")
@@ -68,7 +68,8 @@ def render():
             st.stop()
 
         st.subheader("Productos asociados")
-        st.dataframe(df_prod[["codigo_proveedor","descripcion_item","cantidad_factura","valor_unitario","valor_total"]])
+        #st.dataframe(df_prod[["codigo_proveedor","descripcion_item","cantidad_factura","valor_unitario","valor_total"]])
+        st.dataframe(df_prod[["codigo_proveedor","descripcion_item","valor_unitario","valor_total"]])
 
         # Inputs para códigos inválidos
         nuevos_codigos = {}
@@ -99,7 +100,7 @@ def render():
                     "factura_id": factura_sel["id"],
                     "codigo_proveedor": str(row.get("codigo_proveedor", "")).strip(),
                     "descripcion_item": str(row.get("descripcion_item", "")).strip(),
-                    "cantidad_factura": safe_int(row.get("cantidad_factura")),
+                    #"cantidad_factura": safe_int(row.get("cantidad_factura")),
                     "valor_unitario": safe_float(row.get("valor_unitario")),
                     "valor_total": safe_float(row.get("valor_total")),
                     "cantidad_real": calcular_cantidad_real(row),
@@ -109,7 +110,7 @@ def render():
                 registrar_historial(
                     st.session_state["usuario"], "entrada",
                     row.get("codigo_proveedor",""), row.get("descripcion_item",""),
-                    safe_int(row.get("cantidad_factura")),
+                    #safe_int(row.get("cantidad_factura")),
                     proveedor=factura_sel["proveedor"],
                     nota=f"Factura {factura_sel['num_factura']} autorizada"
                 )
