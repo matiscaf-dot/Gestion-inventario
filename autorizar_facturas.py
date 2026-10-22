@@ -110,7 +110,7 @@ def render():
                 registrar_historial(
                     st.session_state["usuario"], "entrada",
                     row.get("codigo_proveedor",""), row.get("descripcion_item",""),
-                    safe_int(row.get("1")),
+                    safe_int(row.get("cantidad_factura")),
                     proveedor=factura_sel["proveedor"],
                     nota=f"Factura {factura_sel['num_factura']} autorizada"
                 )
