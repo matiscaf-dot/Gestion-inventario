@@ -600,7 +600,7 @@ if st.session_state["pagina"] == "entradas":
         
                 proveedores = list(dict.fromkeys(proveedores))
                 opciones_proveedor = ["Sin especificar"] + proveedores
-        
+                registar = False
                 # Formulario de entrada
                 with st.form("formulario_entrada_inventario"):
         
@@ -625,7 +625,7 @@ if st.session_state["pagina"] == "entradas":
                     registrar = st.form_submit_button("📥 Confirmar entrada", use_container_width=True)
                     
                 st.success("Hola4")
-                if registrar == True:
+                if registrar:
                     st.success("Hola6")
                     # Recuperar el producto seleccionado
                     producto = productos.loc[
