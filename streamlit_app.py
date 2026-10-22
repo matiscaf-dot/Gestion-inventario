@@ -219,7 +219,7 @@ def guardar_datos(df):
     guardar_all(df, prov)
 
 def guardar_proveedores(df_prov):
-    prod = cargar_datos()
+    prod = cargar_datos1()
     guardar_all(prod, df_prov)
 
 def is_number(s):
@@ -250,7 +250,7 @@ def registrar_historial(usuario, tipo, codigo, nombre, cantidad, proveedor="", n
 
 def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None,
                          precio_costo=None, precio_venta=None, descripcion=None, categoria=None, proveedor=""):
-    df = cargar_datos()
+    df = cargar_datos1()
     df["codigo"] = df["codigo"].astype(str)
     codigo = str(codigo).strip()
     usuario_actual = usuario_actual or "desconocido"
@@ -298,7 +298,7 @@ def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None,
             return
     elif tipo == "nuevo":
         # fuerza creación manual desde página Productos
-        df = cargar_datos()
+        df = cargar_datos1()
         nueva_fila = pd.DataFrame({
             "codigo": [codigo],
             "nombre": [nombre if nombre else "Sin nombre"],
@@ -314,6 +314,41 @@ def registrar_movimiento(tipo, codigo, nombre, cantidad, usuario_actual=None,
         guardar_datos(df)
         registrar_historial(usuario_actual, "nuevo", codigo, nombre, int(cantidad),
                             proveedor=proveedor, nota="Producto creado manualmente")
+
+def registrar_entrada_supabase(codigo, cantidad):
+    codigo = str(codigo).strip()
+    cantidad = int(cantidad)
+
+    if cantidad <= 0:
+        raise ValueError("La cantidad debe ser mayor que cero.")
+
+    respuesta = (
+        supabase.table("inventario")
+        .select("cantidad_real")
+        .eq("codigo_proveedor", codigo)
+        .execute()
+    )
+
+    if not respuesta.data:
+        raise ValueError("El producto no existe en Supabase.")
+
+    if len(respuesta.data) > 1:
+        raise ValueError("Hay varios productos con el mismo código.")
+
+    stock_actual = int(respuesta.data[0]["cantidad_real"] or 0)
+    nuevo_stock = stock_actual + cantidad
+
+    resultado = (
+        supabase.table("inventario")
+        .update({"cantidad_real": nuevo_stock})
+        .eq("codigo_proveedor", codigo)
+        .execute()
+    )
+
+    if not resultado.data:
+        raise RuntimeError("Supabase no confirmó la actualización.")
+
+    return nuevo_stock
 
 # ==============================
 # Helpers para navegación
@@ -467,7 +502,7 @@ if st.session_state["pagina"] == "productos":
         #st.error("No tienes permiso para acceder a esta sección.")
         st.stop()
     st.title("🗂️ Gestión de Productos")
-    df = cargar_datos()
+    df = cargar_datos1()
     prov_df = cargar_proveedores()
     st.subheader("Listado actual")
     # Diccionario de nombres amigables para bodeguero en módulo productos
@@ -516,7 +551,7 @@ if st.session_state["pagina"] == "entradas":
                 st.error("No tienes permiso para acceder a esta sección.")
                 st.stop()
         
-            df = cargar_datos()
+            df = cargar_datos1()
             prov_df = cargar_proveedores()
         
             st.divider()
@@ -888,7 +923,7 @@ if st.session_state["pagina"] == "configuracion":
         st.stop()
     st.title("⚙️ Configuración del Sistema")
     st.write("Descarga inventario y gestiona datos del sistema.")
-    df = cargar_datos()
+    df = cargar_datos1()
     prov_df = cargar_proveedores()
     buffer = BytesIO()
     try:
