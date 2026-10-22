@@ -659,11 +659,12 @@ if st.session_state["pagina"] == "entradas":
            #                 f"Entrada registrada: {nombre_producto}. "
             #                f"Unidades recibidas: {int(cantidad_entrada)}."
              #           )
+                        st.success("Hola1")
                         nuevo_stock = registrar_entrada_supabase(
                             codigo=codigo_seleccionado,
                             cantidad=int(cantidad_entrada)
                         )
-                        
+                        st.success("Hola2")
               #          st.success(f"Entrada registrada. Nuevo stock: {nuevo_stock}")
                         st.success(
                         f"Entrada registrada correctamente. "
@@ -671,6 +672,7 @@ if st.session_state["pagina"] == "entradas":
                         f"Unidades ingresadas: {int(cantidad_entrada)}. "
                         f"Nuevo stock: {nuevo_stock}."
                         )
+                        st.success("Hola3")
                         st.rerun()
         
                     except Exception as e:
