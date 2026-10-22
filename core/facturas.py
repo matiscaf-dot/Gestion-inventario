@@ -573,6 +573,17 @@ def normalizar_tabla(df):
         df.at[idx, "descripcion_item"] = " ".join(nuevo_desc.split())
 
     # Calcular valor_unitario
-    df["valor_unitario"] = round(df["valor_tot"]*1.19 / df["cantidad_final"])
+    #df["valor_unitario"] = round(df["valor_tot"]*1.19 / df["cantidad_final"])
 
+    # Calcular el precio unitario.
+    # Comercial Center ya proporciona el precio unitario
+    # en su tabla, por lo que se conserva el valor extraído.
+    df["valor_unitario"] = round(
+        df["valor_tot"] * 1.19 / df["cantidad_final"]
+    )
+    
+    if "subtotal_factura" in df.columns and "comercial center" in df["proveedor"].iloc[0].lower():
+        # El parser guarda el subtotal original por separado.
+        # No se utiliza para recalcular el precio unitario.
+        pass
     return df
