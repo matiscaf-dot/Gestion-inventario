@@ -1030,12 +1030,18 @@ if st.session_state["pagina"] == "subir_facturas":
                     del st.session_state["df_norm"]
                 st.session_state["uploaded_file"] = None
                 st.stop()
-        
+            fecha = df_norm["fecha_emision"].iloc[0]
+
+            if pd.isna(fecha) or not str(fecha).strip():
+                fecha = None
+            else:
+                fecha = str(fecha).strip()
             # Si pasa ambas validaciones → insertar
             factura_info = {
                 "proveedor": str(df_norm["proveedor"].iloc[0] or "").strip(),
                 "num_factura": num_factura,
-                "fecha_emision": str(df_norm["fecha_emision"].iloc[0] or "").strip(),
+                #"fecha_emision": str(df_norm["fecha_emision"].iloc[0] or "").strip(),
+                "fecha_emision": fecha,
                 "estado": "pendiente",
             }
             #factura_insert = supabase.table("detalle_factura_tmp").insert(factura_info).execute()
