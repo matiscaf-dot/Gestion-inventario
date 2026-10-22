@@ -641,7 +641,7 @@ if st.session_state["pagina"] == "entradas":
                         if proveedor_seleccionado == "Sin especificar"
                         else proveedor_seleccionado
                     )
-        
+                    st.success("Hola3")
                     try:
                         # Actualizar el stock y registrar el movimiento
 #                        registrar_movimiento(
@@ -676,6 +676,7 @@ if st.session_state["pagina"] == "entradas":
                         st.rerun()
         
                     except Exception as e:
+                        st.success("Hola4")
                         st.error(f"No se pudo registrar la entrada: {e}")
         
             st.divider()
