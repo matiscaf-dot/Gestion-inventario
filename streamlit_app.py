@@ -470,7 +470,7 @@ if st.session_state["pagina"] == "entradas":
             prov_df = cargar_proveedores()
         
             # Botón para el módulo de autorización de facturas
-            if st.button("✅ Autorizar Facturas", use_container_width=True):
+            if st.button("✅ Autorizar Facturas"):
                 go_to("autorizar_facturas")
         
             st.divider()
