@@ -671,8 +671,6 @@ if st.session_state["pagina"] == "entradas":
                 st.rerun()
             except Exception as e:
                 st.error(f"No se pudo registrar la entrada: {e}")
-        else:
-      
             
         st.divider()
    
