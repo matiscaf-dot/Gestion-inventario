@@ -28,22 +28,64 @@ def leer_pdf(pdf_path):
                 lines.extend(text.split("\n"))
         return [l.strip() for l in lines if l.strip()]
 
-def extraer_fecha_emision(lines):
-    for line in lines:
-        if "fecha emision" in line.lower():
+#def extraer_fecha_emision(lines):
+ #   for line in lines:
+  #      if "fecha emision" in line.lower():
             # Ejemplo capturado:
             # Fecha Emision: 20 de Febrero del 2025
-            m = re.search(r"(\d{1,2})\s+de\s+([A-Za-z]+)\s+del\s+(\d{4})", line, re.IGNORECASE)
-            if m:
-                dia = int(m.group(1))
-                mes_txt = m.group(2).lower()
-                año = int(m.group(3))
+   #         m = re.search(r"(\d{1,2})\s+de\s+([A-Za-z]+)\s+del\s+(\d{4})", line, re.IGNORECASE)
+    #        if m:
+     #           dia = int(m.group(1))
+      #          mes_txt = m.group(2).lower()
+       #         año = int(m.group(3))
 
-                mes = MESES.get(mes_txt, None)
-                if mes:
-                    return datetime.date(año, mes, dia).isoformat()
+        #        mes = MESES.get(mes_txt, None)
+         #       if mes:
+          #          return datetime.date(año, mes, dia).isoformat()
+
+    #return None
+
+
+def extraer_fecha_emision(lines):
+    for line in lines:
+        if "fecha" not in line.lower() or "emision" not in line.lower():
+            continue
+
+        # Formato: 08-10-2026, 08/10/2026 o 08.10.2026
+        m = re.search(
+            r"(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})",
+            line
+        )
+
+        if m:
+            dia, mes, anio = map(int, m.groups())
+            try:
+                return datetime.date(anio, mes, dia).isoformat()
+            except ValueError:
+                continue
+
+        # Formato: 8 de octubre del 2026
+        m = re.search(
+            r"(\d{1,2})\s+de\s+([A-Za-záéíóúñ]+)\s+del?\s+(\d{4})",
+            line,
+            re.IGNORECASE
+        )
+
+        if m:
+            dia = int(m.group(1))
+            mes_txt = m.group(2).lower()
+            anio = int(m.group(3))
+            mes = MESES.get(mes_txt)
+
+            if mes:
+                try:
+                    return datetime.date(anio, mes, dia).isoformat()
+                except ValueError:
+                    continue
 
     return None
+
+
 
 def a_float(x):
     x = x.strip()
@@ -51,12 +93,25 @@ def a_float(x):
     x = x.replace(",", ".")
     return float(x)
 
+#def extraer_num_factura(lines):
+ #   for l in lines:
+  #      m = re.search(r"Nº\s*(\d+)", l)
+   #     if m:
+    #        return m.group(1)
+    #return None
+
 def extraer_num_factura(lines):
-    for l in lines:
-        m = re.search(r"Nº\s*(\d+)", l)
+    for line in lines:
+        m = re.search(
+            r"\b(?:N[º°o.]|NRO\.?|FOLIO)\s*:?\s*(\d+)",
+            line,
+            re.IGNORECASE
+        )
         if m:
             return m.group(1)
+
     return None
+
 
 
 def parse_embonor(lines):
