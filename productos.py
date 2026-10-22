@@ -84,7 +84,7 @@ def render():
             try:
                 supabase.table("inventario").update({"precio_producto": float(nuevo_precio)}).eq("codigo_proveedor", codigo_input).execute()
                 st.success(f"✅ Precio actualizado para el producto con código {codigo_input}.")
-                st.experimental_rerun()
+                st.rerun()
             except Exception as e:
                 st.error(f"❌ Error al actualizar precio: {e}")
         else:
