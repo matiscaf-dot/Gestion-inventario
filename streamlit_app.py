@@ -1038,7 +1038,34 @@ if st.session_state["pagina"] == "subir_facturas":
                 "fecha_emision": str(df_norm["fecha_emision"].iloc[0] or "").strip(),
                 "estado": "pendiente",
             }
-            factura_insert = supabase.table("detalle_factura_tmp").insert(factura_info).execute()
+            #factura_insert = supabase.table("detalle_factura_tmp").insert(factura_info).execute()
+            from postgrest.exceptions import APIError
+            
+            try:
+                factura_insert = (
+                    supabase.table("detalle_factura_tmp")
+                    .insert(factura_info)
+                    .execute()
+                )
+            except APIError as e:
+                st.error("Supabase rechazó el registro de la factura.")
+            
+                # Mostrar detalles útiles para diagnosticar el problema.
+                if isinstance(e.args[0] if e.args else None, dict):
+                    error_info = e.args[0]
+                    st.code(
+                        f"Mensaje: {error_info.get('message')}\n"
+                        f"Código: {error_info.get('code')}\n"
+                        f"Detalles: {error_info.get('details')}\n"
+                        f"Sugerencia: {error_info.get('hint')}"
+                    )
+                else:
+                    st.code(str(e))
+            
+                st.stop()
+            
+            factura_id = factura_insert.data[0]["id"]
+
             factura_id = factura_insert.data[0]["id"]
         
             # Asegurar códigos de proveedor
