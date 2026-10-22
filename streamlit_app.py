@@ -600,7 +600,7 @@ if st.session_state["pagina"] == "entradas":
         
                 proveedores = list(dict.fromkeys(proveedores))
                 opciones_proveedor = ["Sin especificar"] + proveedores
-                registar = False
+    
                 # Formulario de entrada
                 with st.form("formulario_entrada_inventario"):
         
