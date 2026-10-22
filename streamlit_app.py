@@ -627,7 +627,7 @@ if st.session_state["pagina"] == "entradas":
                         use_container_width=True
                     )
                 st.success("Hola4")
-                if registrar:
+                if registrar == True:
                     st.success("Hola6")
                     # Recuperar el producto seleccionado
                     producto = productos.loc[
