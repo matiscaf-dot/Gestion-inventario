@@ -626,7 +626,7 @@ if st.session_state["pagina"] == "entradas":
                         "📥 Confirmar entrada",
                         use_container_width=True
                     )
-        
+                st.success("Hola4")
                 if registrar:
         
                     # Recuperar el producto seleccionado
