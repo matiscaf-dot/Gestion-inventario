@@ -677,7 +677,7 @@ if st.session_state["pagina"] == "entradas":
                         st.error(f"No se pudo registrar la entrada: {e}")
         
             st.divider()
-            st.succes("Hola")
+            st.success("Hola")
             if st.button("⬅️ Volver al menú principal"):
                 go_to("menu")
         
