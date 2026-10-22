@@ -676,6 +676,8 @@ if st.session_state["pagina"] == "entradas":
                         except Exception as e:
                             st.success("Hola4")
                             st.error(f"No se pudo registrar la entrada: {e}")
+                    else:
+                        st.success("Hola20")
             
             st.divider()
             st.success("Hola")
