@@ -664,15 +664,20 @@ if st.session_state["pagina"] == "entradas":
                             cantidad=int(cantidad_entrada)
                         )
                         
-                        st.success(f"Entrada registrada. Nuevo stock: {nuevo_stock}")
-
+              #          st.success(f"Entrada registrada. Nuevo stock: {nuevo_stock}")
+                        st.success(
+                        f"Entrada registrada correctamente. "
+                        f"Producto: {producto['nombre']}. "
+                        f"Unidades ingresadas: {int(cantidad_entrada)}. "
+                        f"Nuevo stock: {nuevo_stock}."
+                        )
                         st.rerun()
         
                     except Exception as e:
                         st.error(f"No se pudo registrar la entrada: {e}")
         
             st.divider()
-        
+            st.succes("Hola")
             if st.button("⬅️ Volver al menú principal"):
                 go_to("menu")
         
