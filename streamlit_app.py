@@ -463,15 +463,8 @@ if st.session_state["pagina"] == "entradas":
                 st.error("No tienes permiso para acceder a esta sección.")
                 st.stop()
         
-            st.title("📦 Registrar Entrada de Inventario")
-            st.write("Registra la recepción de mercadería y actualiza el stock.")
-        
             df = cargar_datos()
             prov_df = cargar_proveedores()
-        
-            # Botón para el módulo de autorización de facturas
-            if st.button("✅ Autorizar Facturas"):
-                go_to("autorizar_facturas")
         
             st.divider()
             st.subheader("➕ Nueva entrada de mercadería")
