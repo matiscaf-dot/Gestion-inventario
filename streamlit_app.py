@@ -623,16 +623,14 @@ if st.session_state["pagina"] == "entradas":
         
             registrar = st.form_submit_button("📥 Confirmar entrada", use_container_width=True)
                     
-            st.success("Hola4")
                 
         if registrar:
                 
-            st.success("Hola6")
                         # Recuperar el producto seleccionado
             producto = productos.loc[
                     productos["codigo"] == codigo_seleccionado
                 ].iloc[0]
-            st.success("Hola5")
+            
             nombre_producto = str(producto["nombre"])
             
             proveedor_final = (
@@ -640,7 +638,6 @@ if st.session_state["pagina"] == "entradas":
                     if proveedor_seleccionado == "Sin especificar"
                     else proveedor_seleccionado
                 )
-            st.success("Hola3")
             try:
                         # Actualizar el stock y registrar el movimiento
 #                        registrar_movimiento(
@@ -658,12 +655,12 @@ if st.session_state["pagina"] == "entradas":
            #                 f"Entrada registrada: {nombre_producto}. "
             #                f"Unidades recibidas: {int(cantidad_entrada)}."
              #           )
-                st.success("Hola1")
+  
                 nuevo_stock = registrar_entrada_supabase(
                     codigo=codigo_seleccionado,
                     cantidad=int(cantidad_entrada)
                 )
-                st.success("Hola2")
+            
               #      st.success(f"Entrada registrada. Nuevo stock: {nuevo_stock}")
                 st.success(
                 f"Entrada registrada correctamente. "
@@ -671,16 +668,14 @@ if st.session_state["pagina"] == "entradas":
                 f"Unidades ingresadas: {int(cantidad_entrada)}. "
                 f"Nuevo stock: {nuevo_stock}."
                 )
-                st.success("Hola3")
                 st.rerun()
             except Exception as e:
-                st.success("Hola4")
                 st.error(f"No se pudo registrar la entrada: {e}")
         else:
-            st.success("Hola20")
+      
             
         st.divider()
-        st.success("Hola")
+   
         if st.button("⬅️ Volver al menú principal"):
             go_to("menu")
         
