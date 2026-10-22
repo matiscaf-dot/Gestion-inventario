@@ -673,12 +673,13 @@ if st.session_state["pagina"] == "entradas":
                 st.error(f"No se pudo registrar la entrada: {e}")
             
         st.divider()
+        if st.button("⬅️ Volver al menú principal"):
+        go_to("menu")
    
 
         
-            pass
-    if st.button("⬅️ Volver al menú principal"):
-        go_to("menu")
+        pass
+
 
 # ==============================
 # SALIDAS (manual + boleta)
