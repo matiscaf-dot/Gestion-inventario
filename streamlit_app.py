@@ -622,7 +622,7 @@ if st.session_state["pagina"] == "entradas":
                         options=opciones_proveedor
                     )
         
-                    registrar = st.form_submit_button("📥 Confirmar entrada", use_container_width=True)
+                    registrar = st.form_submit_button("📥 Confirmar entrada")
                     
                 st.success("Hola4")
                 if registrar:
