@@ -4,10 +4,12 @@ import pandas as pd
 from datetime import datetime
 import os
 import json
+import random
 from io import BytesIO
 from PIL import Image
 from supabase import create_client
 from productos import render
+from postgrest.exceptions import APIError
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -1038,6 +1040,7 @@ if st.session_state["pagina"] == "subir_facturas":
                 fecha = str(fecha).strip()
             # Si pasa ambas validaciones → insertar
             factura_info = {
+                "id":random.randint(35,1000),
                 "proveedor": str(df_norm["proveedor"].iloc[0] or "").strip(),
                 "num_factura": num_factura,
                 #"fecha_emision": str(df_norm["fecha_emision"].iloc[0] or "").strip(),
@@ -1045,7 +1048,6 @@ if st.session_state["pagina"] == "subir_facturas":
                 "estado": "pendiente",
             }
             #factura_insert = supabase.table("detalle_factura_tmp").insert(factura_info).execute()
-            from postgrest.exceptions import APIError
             
             try:
                 factura_insert = (
