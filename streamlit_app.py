@@ -1040,7 +1040,6 @@ if st.session_state["pagina"] == "subir_facturas":
                 fecha = str(fecha).strip()
             # Si pasa ambas validaciones → insertar
             factura_info = {
-                "id":random.randint(35,1000),
                 "proveedor": str(df_norm["proveedor"].iloc[0] or "").strip(),
                 "num_factura": num_factura,
                 #"fecha_emision": str(df_norm["fecha_emision"].iloc[0] or "").strip(),
