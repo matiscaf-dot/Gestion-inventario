@@ -126,7 +126,14 @@ def render():
                     proveedor=factura_sel["proveedor"],
                     nota=f"Factura {factura_sel['num_factura']} autorizada"
                 )
+            st.write("DEBUG - Registros que se enviarán a inventario:")
 
+            st.json(registros_inventario)
+            
+            st.write("DEBUG - Valores de factura_id:")
+            
+            for registro in registros_inventario:
+                st.write(registro.get("factura_id", "No incluido"))
             supabase.table("inventario").upsert(registros_inventario).execute()
             supabase.table("detalle_factura_tmp").update({"estado":"autorizada"}).eq("id", factura_sel["id"]).execute()
 
