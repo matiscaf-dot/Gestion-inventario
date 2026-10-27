@@ -7,7 +7,19 @@ from streamlit_app import registrar_historial
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+def obtener_id_proveedor(rut_proveedor):
+    resultado = (
+        supabase.table("Proveedor")
+        .select("id_proveedor")
+        .eq("rut_proveedor", rut_proveedor)
+        .limit(1)
+        .execute()
+    )
 
+    if resultado.data:
+        return resultado.data[0]["id_proveedor"]
+
+    return None
 # Helpers
 def safe_int(x):
     try:
