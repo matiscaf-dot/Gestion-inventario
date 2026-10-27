@@ -1039,7 +1039,24 @@ if st.session_state["pagina"] == "subir_facturas":
             else:
                 fecha = str(fecha).strip()
             # Si pasa ambas validaciones → insertar
+            # Obtener RUT del proveedor desde la factura
+            #Lineas 1044 a 1055 fueron agregadas
+
+            rut_proveedor = str(df_norm["rut_proveedor"].iloc[0]).strip()
+            
+            # Buscar el UUID del proveedor en Supabase
+            id_proveedor = obtener_id_proveedor(rut_proveedor)
+            
+            # Detener el registro si el proveedor no existe
+            if id_proveedor is None:
+                st.error(
+                    f"❌ El proveedor con RUT {rut_proveedor} "
+                    "no está registrado en Supabase."
+                )
+                st.stop()
             factura_info = {
+                #id_proveedor fue agregada
+                "id_proveedor": id_proveedor,
                 "proveedor": str(df_norm["proveedor"].iloc[0] or "").strip(),
                 "num_factura": num_factura,
                 #"fecha_emision": str(df_norm["fecha_emision"].iloc[0] or "").strip(),
